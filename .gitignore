@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+dist/
+build/
+data/raw/
+game_logs/
+*.egg-info/

@@ -1,0 +1,11 @@
+{
+  "ruleset_id": "mlb_2026_regular_v1",
+  "scheduled_innings": 9,
+  "max_innings": 21,
+  "max_plate_appearances_per_half": 80,
+  "skip_home_bottom_if_leading_after_top_final": true,
+  "enable_walkoff": true,
+  "enable_runner_on_second_in_extras": false,
+  "runner_on_second_start_inning": 10,
+  "home_field_event_boost": 0.015
+}
