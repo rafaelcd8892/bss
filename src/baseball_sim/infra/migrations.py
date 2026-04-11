@@ -4,7 +4,7 @@ import hashlib
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Final, Protocol
+from typing import Any, Final, Protocol, cast
 
 _MIGRATION_FILE_PATTERN: Final[re.Pattern[str]] = re.compile(
     r"^(?P<version>\d+)_(?P<name>[A-Za-z0-9_]+)\.sql$"
@@ -207,10 +207,11 @@ def apply_migrations(
     skipped_versions: list[str] = []
 
     with psycopg.connect(dsn) as conn:
-        _acquire_migration_lock(conn)
+        conn_proto = cast(ConnectionProtocol, conn)
+        _acquire_migration_lock(conn_proto)
         try:
-            _ensure_schema_migrations_table(conn)
-            existing_migrations = _fetch_applied_migrations(conn)
+            _ensure_schema_migrations_table(conn_proto)
+            existing_migrations = _fetch_applied_migrations(conn_proto)
 
             for migration in migrations:
                 existing_checksum = existing_migrations.get(migration.version)
@@ -224,11 +225,11 @@ def apply_migrations(
                     skipped_versions.append(migration.version)
                     continue
 
-                _apply_single_migration(conn, migration)
+                _apply_single_migration(conn_proto, migration)
                 applied_versions.append(migration.version)
                 existing_migrations[migration.version] = migration.checksum_sha256
         finally:
-            _release_migration_lock(conn)
+            _release_migration_lock(conn_proto)
 
     return MigrationReport(
         applied_versions=applied_versions,

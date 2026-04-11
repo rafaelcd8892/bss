@@ -1,9 +1,9 @@
 # plan.MD
 
 ## Planning Log
-- Last updated: 2026-02-22
+- Last updated: 2026-04-10
 - Owner: Rafael + coding agents
-- Project status: Phase 6 in progress (CLI watch MVP + API roster fallback implemented)
+- Project status: Phase 6 in progress (Textual TUI added; CLI watch MVP complete)
 
 ## North Star
 Create a deterministic, scalable baseball simulator and sabermetrics intelligence platform that supports:
@@ -93,6 +93,7 @@ Exit criteria:
 - [x] Implement paced play-by-play stream with configurable delay and pause/resume.
 - [x] Add deterministic match identifier and seed registry for replayability.
 - [x] Persist full play logs to disk (JSONL) and summarized box report (JSON).
+- [x] Build Textual TUI (`cli.tui`) with 3-panel layout, color-coded play log, and keyboard controls.
 - [ ] Add CLI commands to replay logged games from stored seed and snapshot metadata.
 - [x] Add roster seeder to generate synthetic players when API/player data is missing.
 - [x] Wire API roster loading with deterministic seeded fallback for missing/inaccessible data.

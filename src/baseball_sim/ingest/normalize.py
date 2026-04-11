@@ -129,6 +129,8 @@ def normalize_games(schedule_dates: list[dict[str, Any]]) -> list[GameRecord]:
             game_date = _parse_date(game_date_value)
             if game_date is None:
                 continue
+            if season_value is None:
+                continue
             try:
                 season = int(season_value)
             except (TypeError, ValueError):

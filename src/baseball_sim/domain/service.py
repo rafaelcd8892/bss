@@ -1,4 +1,5 @@
 import math
+from typing import Literal, cast
 
 from baseball_sim.domain.contracts import (
     ComparePlayersRequest,
@@ -77,7 +78,7 @@ def compare_players(request: ComparePlayersRequest) -> ComparePlayersResult:
     left_wins = 0
     right_wins = 0
 
-    for salt, (name, (direction, (minimum, maximum, decimals))) in enumerate(
+    for salt, (name, (direction_str, (minimum, maximum, decimals))) in enumerate(
         metric_values.items(),
         start=1,
     ):
@@ -97,6 +98,7 @@ def compare_players(request: ComparePlayersRequest) -> ComparePlayersResult:
             maximum=maximum,
             decimals=decimals,
         )
+        direction = cast(Literal["higher_is_better", "lower_is_better"], direction_str)
         delta = round(left_value - right_value, decimals)
         if direction == "higher_is_better":
             better_player_id = left if left_value >= right_value else right

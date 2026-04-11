@@ -49,27 +49,34 @@ Raw payload snapshots are written under `BASEBALL_RAW_DATA_DIR` (default: `data/
 Simulation behavior is config-driven via `BASEBALL_SIMULATOR_RULESET_PATH` (default: `rulesets/mlb_2026_regular.json`).
 
 ## CLI Watch Simulator
-Watch a full deterministic game in terminal with scoreboard, lineups, field panel, and play-by-play pacing:
 
+### Textual TUI (recommended)
+Full interactive TUI with 3-panel layout, color-coded play log, bases diamond, and keyboard controls:
+
+```bash
+python -m baseball_sim.cli.tui --home-team-id 147 --away-team-id 121 --seed 1234 --seeded-rosters-only
+```
+
+Manual step-through mode:
+
+```bash
+python -m baseball_sim.cli.tui --home-team-id 147 --away-team-id 121 --seed 1234 --seeded-rosters-only --manual
+```
+
+Controls: `p` pause · `r` resume · `Space` step · `q` quit
+
+### Classic terminal printer
 ```bash
 python -m baseball_sim.cli.watch --home-team-id 147 --away-team-id 121 --seed 1234 --delay-seconds 0.8
 ```
 
-By default, CLI rosters use MLB Stats API first and fall back to deterministic seeded players when API data is unavailable or incomplete.
+By default, CLI rosters use MLB Stats API first and fall back to deterministic seeded players when API data is unavailable or incomplete. Use `--seeded-rosters-only` to skip API calls entirely.
 
-Manual stepping mode:
-
-```bash
-python -m baseball_sim.cli.watch --home-team-id 147 --away-team-id 121 --seed 1234 --manual
-```
-
-Force seeded-only rosters (skip API calls):
-
-```bash
-python -m baseball_sim.cli.watch --home-team-id 147 --away-team-id 121 --seed 1234 --seeded-rosters-only
-```
+Common team IDs: 147 Yankees · 121 Mets · 119 Dodgers · 111 Red Sox · 158 Brewers
 
 Logs are saved under `game_logs/`:
 - `{match_id}.jsonl` (play-by-play)
 - `{match_id}_summary.json` (final summary)
 - `match_registry.jsonl` (match-to-seed registry)
+
+See `docs/cli_watch.md` for full flag reference.

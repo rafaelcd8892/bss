@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, cast
 
 from baseball_sim.sim.rulesets import DEFAULT_RULESET, SimulationRuleset
 
@@ -477,7 +477,10 @@ def _event_probabilities(
         "tiebreaker": 0.0,
     }
     total = sum(raw[event] for event in ("out", "walk", "single", "double", "triple", "home_run"))
-    return {event: probability / total for event, probability in raw.items()}
+    return cast(
+        dict[PlateAppearanceEvent, float],
+        {event: probability / total for event, probability in raw.items()},
+    )
 
 
 def _sample_event(

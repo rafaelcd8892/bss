@@ -198,11 +198,11 @@ class PlaybackController:
                 return True
             return True
 
-        command = _read_nonblocking_command()
-        if command == "p":
+        nb_command = _read_nonblocking_command()
+        if nb_command == "p":
             self.paused = True
             return True
-        if command == "q":
+        if nb_command == "q":
             self.quit_requested = True
             return False
 
