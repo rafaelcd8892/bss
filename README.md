@@ -9,6 +9,7 @@ Deterministic, sabermetrics-driven MLB simulation and analytics service.
 - `docs/data_ingestion.md`: ingestion model and immutable snapshot strategy.
 - `docs/simulator.md`: deterministic state-machine simulation model.
 - `docs/rulesets.md`: ruleset-driven simulator configuration.
+- `docs/sabermetrics.md`: real sabermetrics computation and the stats-provider seam.
 - `docs/cli_watch.md`: terminal watch mode behavior and controls.
 - `docs/session_2026-02-22.md`: implementation log for today’s delivered scope.
 
@@ -44,6 +45,19 @@ python -m baseball_sim.ingest.run_sync --start-date 2026-04-01 --end-date 2026-0
 ```
 
 Raw payload snapshots are written under `BASEBALL_RAW_DATA_DIR` (default: `data/raw`).
+
+To also ingest per-player season stats and compute sabermetrics (wOBA, wRC+, FIP, K/BB):
+```bash
+python -m baseball_sim.ingest.run_sync --start-date 2026-04-01 --end-date 2026-04-07 \
+  --season 2026 --include-player-stats
+```
+
+## Real Sabermetrics vs Synthetic Fallback
+Compare and simulation consume player/team ratings through a `StatsProvider`. By
+default (`BASEBALL_STATS_SOURCE=synthetic`) ratings are deterministic seed-only values.
+Set `BASEBALL_STATS_SOURCE=postgres` (and `BASEBALL_STATS_SEASON`) to drive them from
+real ingested stats, falling back to synthetic per-player/team when data is missing.
+See `docs/sabermetrics.md`.
 
 ## Simulator Ruleset
 Simulation behavior is config-driven via `BASEBALL_SIMULATOR_RULESET_PATH` (default: `rulesets/mlb_2026_regular.json`).

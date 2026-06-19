@@ -12,6 +12,7 @@ from baseball_sim.domain.contracts import (
     SimulateGameRequest,
     SimulateGameResponse,
 )
+from baseball_sim.domain.provider_factory import get_stats_provider
 from baseball_sim.domain.service import compare_players, predict_game, simulate_game
 from baseball_sim.sim.rulesets import load_ruleset_from_path
 
@@ -29,8 +30,11 @@ def health(settings: SettingsDependency) -> dict[str, str]:
 
 
 @router.post("/compare/players", response_model=ComparePlayersResponse)
-def compare_players_endpoint(request: ComparePlayersRequest) -> ComparePlayersResponse:
-    result = compare_players(request)
+def compare_players_endpoint(
+    request: ComparePlayersRequest,
+    settings: SettingsDependency,
+) -> ComparePlayersResponse:
+    result = compare_players(request, provider=get_stats_provider(settings))
     return ComparePlayersResponse(meta=ResponseMeta(context=request.context), result=result)
 
 
@@ -44,6 +48,7 @@ def simulate_game_endpoint(
         request,
         ruleset=loaded_ruleset.ruleset,
         ruleset_checksum=loaded_ruleset.checksum_sha256,
+        provider=get_stats_provider(settings),
     )
     return SimulateGameResponse(meta=ResponseMeta(context=request.context), result=result)
 

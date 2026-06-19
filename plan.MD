@@ -1,9 +1,10 @@
 # plan.MD
 
 ## Planning Log
-- Last updated: 2026-04-10
+- Last updated: 2026-06-19
 - Owner: Rafael + coding agents
-- Project status: Phase 6 in progress (Textual TUI added; CLI watch MVP complete)
+- Project status: Phase 2/3 deepened — real sabermetrics now feed compare and the
+  simulator via a stats-provider seam (synthetic fallback preserved). Phase 6 ongoing.
 
 ## North Star
 Create a deterministic, scalable baseball simulator and sabermetrics intelligence platform that supports:
@@ -51,6 +52,7 @@ Exit criteria:
 
 ### Phase 2: Sabermetrics Core (Weeks 3-5)
 - [x] Implement metric computation service (wOBA, xwOBA-derived features, wRC+ baseline, FIP family baseline).
+- [x] Compute metrics from real ingested stats (`sim/sabermetrics.py`) and wire into compare/simulator via a stats-provider seam with synthetic fallback.
 - [ ] Add context adjustments (park, handedness, season context).
 - [x] Build compare endpoints for player and team analysis.
 - [x] Add explanation payloads for metric differences.
@@ -126,7 +128,18 @@ Exit criteria:
 7. [x] Wire roster loading fallback chain (API -> synthetic seeded).
 8. [ ] Persist roster membership relation (`player_id` to `team_id` by snapshot).
 9. [ ] Add simulation run persistence in API endpoints.
-10. [ ] Add GitHub Actions matrix for lint/type/tests.
+10. [x] Fix CI trigger (now runs on `master`) — matrix expansion still open.
+
+## Real-Data Integration (delivered 2026-06-19)
+- [x] Pure sabermetrics computation module (`sim/sabermetrics.py`): wOBA, wRC+, FIP, K/BB.
+- [x] `StatsProvider` seam: synthetic (legacy-exact), stat-line (real), layered fallback.
+- [x] Wire compare + simulator to consume providers; default synthetic = no regression.
+- [x] Ingest per-player season stats and compute sabermetrics (`--include-player-stats`).
+- [x] Migration `0002`: raw stat components + computed metrics in `player_season_stats`.
+- [x] Postgres read provider behind `BASEBALL_STATS_SOURCE=postgres`.
+- [ ] Ingest fielding data to replace neutral `range_factor`.
+- [ ] Ingest Statcast expected stats to replace synthetic `xwoba`.
+- [ ] Integration test of the Postgres stats path against ephemeral PostgreSQL.
 
 ## Risks and Mitigations
 - External API schema changes:

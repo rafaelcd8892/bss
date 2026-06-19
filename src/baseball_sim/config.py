@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     mlb_stats_backoff_seconds: float = 0.25
     mlb_stats_sport_id: int = 1
     simulator_ruleset_path: str = "rulesets/mlb_2026_regular.json"
+    stats_source: str = "synthetic"
+    stats_season: int = 2026
     default_seed: int = 42
     default_model_version: str = "baseline-v1"
     default_data_snapshot_id: str = "snapshot-bootstrap-0001"

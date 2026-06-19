@@ -238,9 +238,41 @@ When adding a new decision, use this format:
   - Keep watch mode seeded-only until DB roster store is complete.
   - Hard-fail CLI run when API roster data is unavailable.
 
+## ADR-014: Stats Provider Seam Connecting Real Data to Compare and Simulator
+- Date: 2026-06-19
+- Status: Accepted
+- Context:
+  - The compare endpoint and simulator produced metrics/team profiles by hashing
+    entity IDs from the seed; ingested MLB data was never consumed by either.
+  - The `player_season_stats` table existed in the schema but was never written or read.
+  - We need real sabermetrics to drive analysis while preserving determinism and the
+    ability to run offline/without a database.
+- Decision:
+  - Add a pure sabermetrics module (`sim/sabermetrics.py`) computing wOBA, wRC+, FIP,
+    and K/BB from raw counting lines with versioned league weights.
+  - Introduce a `StatsProvider` seam consumed by `compare_players` and `simulate_game`:
+    - `SyntheticStatsProvider` reproduces prior hash-based values exactly (fallback).
+    - `StatLineStatsProvider` computes real metrics from stat lines, with per-metric
+      fallback (`real` / `real_partial` sourcing) and a real team-profile builder.
+    - `LayeredStatsProvider` chains real-first, synthetic-last.
+  - Extend ingestion to fetch per-player season splits, compute sabermetrics, and store
+    raw components + computed metrics in `player_season_stats` (migration `0002`).
+  - Select the provider via `BASEBALL_STATS_SOURCE`; default stays synthetic so the
+    legacy path is bit-identical and runs without a database.
+- Consequences:
+  - Real data now drives compare and simulation when available; behavior is unchanged
+    when it is not, and determinism is preserved in both modes.
+  - One analytical code path serves both DB-backed and in-memory inputs.
+  - Fielding range and Statcast `xwoba` remain synthetic until those feeds are ingested.
+- Alternatives considered:
+  - Reading precomputed metrics only (cannot rebuild team-profile aggregates).
+  - Hard cutover to real data with no synthetic fallback (breaks offline/CI runs).
+
 ---
 
 ## Change Log
+- 2026-06-19: Added ADR-014; wired real sabermetrics into compare/simulate via the
+  stats provider seam; CI now triggers on `master`.
 - 2026-02-22: Initialized ADR records for project kickoff.
 - 2026-02-22: Added ADR-006 and scaffolded initial deterministic API and database baseline.
 - 2026-02-22: Added ADR-007 for content-addressed immutable snapshot storage.

@@ -1,16 +1,24 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 from baseball_sim.config import Settings, get_settings
 from baseball_sim.ingest.mlb_stats_client import create_default_mlb_stats_client
-from baseball_sim.ingest.normalize import normalize_games, normalize_players, normalize_teams
+from baseball_sim.ingest.normalize import (
+    PlayerRecord,
+    normalize_games,
+    normalize_players,
+    normalize_teams,
+)
 from baseball_sim.ingest.repository import IngestRepository, PostgresIngestRepository
 from baseball_sim.ingest.snapshot_store import SnapshotStore, StoredSnapshot
+from baseball_sim.ingest.stats import PlayerSeasonStatRecord, normalize_player_stats
 
 SOURCE_SYSTEM = "mlb_stats_api"
+STAT_GROUPS = ("hitting", "pitching")
 
 
 class SupportsMLBClient(Protocol):
@@ -31,6 +39,12 @@ class SupportsMLBClient(Protocol):
     ) -> list[dict[str, Any]]: ...
 
 
+class SupportsPlayerStatsClient(SupportsMLBClient, Protocol):
+    async def get_player_season_stats(
+        self, *, player_id: int, season: int, group: str
+    ) -> dict[str, Any]: ...
+
+
 @dataclass(frozen=True)
 class IngestionResult:
     teams_snapshot_id: str
@@ -39,6 +53,8 @@ class IngestionResult:
     teams_upserted: int
     players_upserted: int
     games_upserted: int
+    stats_snapshot_id: str | None = None
+    player_stats_upserted: int = 0
 
 
 async def ingest_mlb_window(
@@ -46,6 +62,7 @@ async def ingest_mlb_window(
     start_date: str,
     end_date: str,
     season: int,
+    include_player_stats: bool = False,
     settings: Settings | None = None,
     repository: IngestRepository | None = None,
     client: SupportsMLBClient | None = None,
@@ -71,6 +88,7 @@ async def ingest_mlb_window(
                     end_date=end_date,
                     season=season,
                     sport_id=app_settings.mlb_stats_sport_id,
+                    include_player_stats=include_player_stats,
                 )
         else:
             result = await _ingest_with_client(
@@ -81,6 +99,7 @@ async def ingest_mlb_window(
                 end_date=end_date,
                 season=season,
                 sport_id=app_settings.mlb_stats_sport_id,
+                include_player_stats=include_player_stats,
             )
         repo.commit()
         return result
@@ -101,6 +120,7 @@ async def _ingest_with_client(
     end_date: str,
     season: int,
     sport_id: int,
+    include_player_stats: bool,
 ) -> IngestionResult:
     teams_payload = await client.get_teams(sport_id=sport_id, season=season)
     rosters_payload = await _fetch_rosters(client=client, teams_payload=teams_payload)
@@ -152,6 +172,17 @@ async def _ingest_with_client(
     )
     games_upserted = repository.upsert_games(snapshot_id=schedule_snapshot.snapshot_id, games=games)
 
+    stats_snapshot_id: str | None = None
+    player_stats_upserted = 0
+    if include_player_stats and _client_supports_stats(client):
+        stats_snapshot_id, player_stats_upserted = await _ingest_player_stats(
+            client=cast(SupportsPlayerStatsClient, client),
+            repository=repository,
+            snapshot_store=snapshot_store,
+            players=players,
+            season=season,
+        )
+
     return IngestionResult(
         teams_snapshot_id=teams_snapshot.snapshot_id,
         rosters_snapshot_id=rosters_snapshot.snapshot_id,
@@ -159,7 +190,58 @@ async def _ingest_with_client(
         teams_upserted=teams_upserted,
         players_upserted=players_upserted,
         games_upserted=games_upserted,
+        stats_snapshot_id=stats_snapshot_id,
+        player_stats_upserted=player_stats_upserted,
     )
+
+
+def _client_supports_stats(client: SupportsMLBClient) -> bool:
+    return callable(getattr(client, "get_player_season_stats", None))
+
+
+async def _ingest_player_stats(
+    *,
+    client: SupportsPlayerStatsClient,
+    repository: IngestRepository,
+    snapshot_store: SnapshotStore,
+    players: Sequence[PlayerRecord],
+    season: int,
+) -> tuple[str, int]:
+    player_ids = sorted({player.player_id for player in players})
+    raw_payloads: dict[str, dict[str, Any]] = {}
+    records: list[PlayerSeasonStatRecord] = []
+
+    tasks = [
+        client.get_player_season_stats(player_id=player_id, season=season, group=group)
+        for player_id in player_ids
+        for group in STAT_GROUPS
+    ]
+    payloads = await asyncio.gather(*tasks)
+
+    index = 0
+    for player_id in player_ids:
+        for group in STAT_GROUPS:
+            payload = payloads[index]
+            index += 1
+            raw_payloads[f"{player_id}:{group}"] = payload
+            records.extend(
+                normalize_player_stats(player_id=player_id, season=season, payload=payload)
+            )
+
+    stats_snapshot = snapshot_store.write_snapshot(
+        source_system=SOURCE_SYSTEM,
+        category="player_season_stats",
+        payload=raw_payloads,
+    )
+    _record_snapshot(
+        repository=repository,
+        snapshot=stats_snapshot,
+        notes=f"season={season};entity=player_season_stats",
+    )
+    upserted = repository.upsert_player_season_stats(
+        snapshot_id=stats_snapshot.snapshot_id, records=records
+    )
+    return stats_snapshot.snapshot_id, upserted
 
 
 def _record_snapshot(

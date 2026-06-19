@@ -1,5 +1,4 @@
 import math
-from typing import Literal, cast
 
 from baseball_sim.domain.contracts import (
     ComparePlayersRequest,
@@ -11,36 +10,18 @@ from baseball_sim.domain.contracts import (
     SimulateGameRequest,
     SimulateGameResult,
 )
+from baseball_sim.domain.stats_provider import (
+    DEFAULT_STATS_PROVIDER,
+    METRIC_SPECS,
+    StatsProvider,
+)
+from baseball_sim.sim.hashing import scale
 from baseball_sim.sim.rulesets import SimulationRuleset
 from baseball_sim.sim.state_machine import simulate_game_state_machine
 
 
-def _u32_mix(seed: int, entity_id: int, salt: int) -> int:
-    mixed = (seed ^ (entity_id * 2_654_435_761) ^ (salt * 2_246_822_519)) & 0xFFFFFFFF
-    return (mixed * 1_664_525 + 1_013_904_223) & 0xFFFFFFFF
-
-
-def _unit_interval(seed: int, entity_id: int, salt: int) -> float:
-    mixed = _u32_mix(seed=seed, entity_id=entity_id, salt=salt)
-    return mixed / 4_294_967_295.0
-
-
-def _scale(
-    *,
-    seed: int,
-    entity_id: int,
-    salt: int,
-    minimum: float,
-    maximum: float,
-    decimals: int,
-) -> float:
-    raw = _unit_interval(seed=seed, entity_id=entity_id, salt=salt)
-    value = minimum + (maximum - minimum) * raw
-    return round(value, decimals)
-
-
 def _team_strength(seed: int, team_id: int, salt: int) -> float:
-    offense = _scale(
+    offense = scale(
         seed=seed,
         entity_id=team_id,
         salt=salt,
@@ -48,7 +29,7 @@ def _team_strength(seed: int, team_id: int, salt: int) -> float:
         maximum=0.42,
         decimals=4,
     )
-    pitching = _scale(
+    pitching = scale(
         seed=seed,
         entity_id=team_id,
         salt=salt + 11,
@@ -61,46 +42,28 @@ def _team_strength(seed: int, team_id: int, salt: int) -> float:
     return offense_runs + (1.2 - pitching_adjustment)
 
 
-def compare_players(request: ComparePlayersRequest) -> ComparePlayersResult:
+def compare_players(
+    request: ComparePlayersRequest,
+    *,
+    provider: StatsProvider | None = None,
+) -> ComparePlayersResult:
+    active_provider = provider if provider is not None else DEFAULT_STATS_PROVIDER
     left = request.left_player_id
     right = request.right_player_id
     seed = request.context.seed
 
-    metric_values = {
-        "woba": ("higher_is_better", (0.255, 0.415, 4)),
-        "xwoba": ("higher_is_better", (0.250, 0.430, 4)),
-        "wrc_plus": ("higher_is_better", (70.0, 175.0, 1)),
-        "fip": ("lower_is_better", (2.6, 5.2, 2)),
-        "k_bb_ratio": ("higher_is_better", (1.2, 6.0, 2)),
-    }
+    left_rating = active_provider.player_rating(player_id=left, seed=seed)
+    right_rating = active_provider.player_rating(player_id=right, seed=seed)
 
     comparisons: dict[str, MetricComparison] = {}
     left_wins = 0
     right_wins = 0
 
-    for salt, (name, (direction_str, (minimum, maximum, decimals))) in enumerate(
-        metric_values.items(),
-        start=1,
-    ):
-        left_value = _scale(
-            seed=seed,
-            entity_id=left,
-            salt=salt,
-            minimum=minimum,
-            maximum=maximum,
-            decimals=decimals,
-        )
-        right_value = _scale(
-            seed=seed,
-            entity_id=right,
-            salt=salt,
-            minimum=minimum,
-            maximum=maximum,
-            decimals=decimals,
-        )
-        direction = cast(Literal["higher_is_better", "lower_is_better"], direction_str)
-        delta = round(left_value - right_value, decimals)
-        if direction == "higher_is_better":
+    for name, spec in METRIC_SPECS.items():
+        left_value = left_rating.metrics[name]
+        right_value = right_rating.metrics[name]
+        delta = round(left_value - right_value, spec.decimals)
+        if spec.direction == "higher_is_better":
             better_player_id = left if left_value >= right_value else right
         else:
             better_player_id = left if left_value <= right_value else right
@@ -115,10 +78,13 @@ def compare_players(request: ComparePlayersRequest) -> ComparePlayersResult:
             right_value=right_value,
             delta_left_minus_right=delta,
             better_player_id=better_player_id,
-            direction=direction,
+            direction=spec.direction,
         )
 
-    summary = f"Player {left} leads {left_wins} metrics; player {right} leads {right_wins} metrics."
+    summary = (
+        f"Player {left} leads {left_wins} metrics; player {right} leads {right_wins} metrics. "
+        f"Sources: left={left_rating.source}, right={right_rating.source}."
+    )
     return ComparePlayersResult(
         left_player_id=left,
         right_player_id=right,
@@ -132,14 +98,29 @@ def simulate_game(
     *,
     ruleset: SimulationRuleset | None = None,
     ruleset_checksum: str | None = None,
+    provider: StatsProvider | None = None,
 ) -> SimulateGameResult:
+    seed = request.context.seed
+    home_profile = None
+    away_profile = None
+    extra_assumptions: list[str] = []
+    if provider is not None:
+        home_profile = provider.team_profile(team_id=request.home_team_id, seed=seed)
+        away_profile = provider.team_profile(team_id=request.away_team_id, seed=seed)
+        extra_assumptions.append(
+            "Team profiles sourced from stats provider "
+            f"({type(provider).__name__}) rather than seed-only synthesis."
+        )
+
     engine_result = simulate_game_state_machine(
-        seed=request.context.seed,
+        seed=seed,
         home_team_id=request.home_team_id,
         away_team_id=request.away_team_id,
         scheduled_innings=request.innings,
         ruleset=ruleset,
         ruleset_checksum=ruleset_checksum,
+        home_profile=home_profile,
+        away_profile=away_profile,
     )
     return SimulateGameResult(
         home_team_id=request.home_team_id,
@@ -148,7 +129,7 @@ def simulate_game(
         home_score=engine_result.home_score,
         away_score=engine_result.away_score,
         winner_team_id=engine_result.winner_team_id,
-        assumptions=engine_result.assumptions,
+        assumptions=engine_result.assumptions + extra_assumptions,
     )
 
 

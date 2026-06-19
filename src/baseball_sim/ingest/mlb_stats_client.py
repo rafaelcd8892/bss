@@ -127,6 +127,18 @@ class MLBStatsClient:
             raise ValueError("Expected dates array from MLB Stats API schedule endpoint")
         return [entry for entry in dates if isinstance(entry, dict)]
 
+    async def get_player_season_stats(
+        self,
+        *,
+        player_id: int,
+        season: int,
+        group: str,
+    ) -> dict[str, Any]:
+        return await self._get_json(
+            f"/people/{player_id}/stats",
+            params={"stats": "season", "season": season, "group": group},
+        )
+
     async def get_team_roster(
         self,
         *,

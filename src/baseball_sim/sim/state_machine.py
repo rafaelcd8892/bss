@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal, cast
 
+from baseball_sim.sim.hashing import unit_interval
+from baseball_sim.sim.profiles import TeamProfile, synthetic_team_profile
 from baseball_sim.sim.rulesets import DEFAULT_RULESET, SimulationRuleset
 
 HalfInningLabel = Literal["top", "bottom"]
@@ -15,18 +17,6 @@ PlateAppearanceEvent = Literal[
     "home_run",
     "tiebreaker",
 ]
-
-_U32_MAX = 4_294_967_295
-
-
-def _u32_mix(seed: int, entity_id: int, salt: int) -> int:
-    mixed = (seed ^ (entity_id * 2_654_435_761) ^ (salt * 2_246_822_519)) & 0xFFFFFFFF
-    return (mixed * 1_664_525 + 1_013_904_223) & 0xFFFFFFFF
-
-
-def _unit_interval(seed: int, entity_id: int, salt: int) -> float:
-    mixed = _u32_mix(seed=seed, entity_id=entity_id, salt=salt)
-    return mixed / _U32_MAX
 
 
 def _clamp(value: float, low: float, high: float) -> float:
@@ -48,20 +38,9 @@ class DeterministicRng:
         game_hash = (
             (self.home_team_id * 97_531) ^ (self.away_team_id * 193_939) ^ (self.cursor * 834_927)
         ) & 0xFFFFFFFF
-        value = _unit_interval(seed=self.seed, entity_id=self.cursor, salt=game_hash)
+        value = unit_interval(seed=self.seed, entity_id=self.cursor, salt=game_hash)
         self.cursor += 1
         return value
-
-
-@dataclass(frozen=True)
-class TeamProfile:
-    offense: float
-    discipline: float
-    power: float
-    speed: float
-    prevention: float
-    command: float
-    range_factor: float
 
 
 @dataclass(frozen=True)
@@ -133,6 +112,8 @@ def simulate_game_state_machine(
     scheduled_innings: int,
     ruleset: SimulationRuleset | None = None,
     ruleset_checksum: str | None = None,
+    home_profile: TeamProfile | None = None,
+    away_profile: TeamProfile | None = None,
 ) -> GameEngineResult:
     trace = simulate_game_trace(
         seed=seed,
@@ -141,6 +122,8 @@ def simulate_game_state_machine(
         scheduled_innings=scheduled_innings,
         ruleset=ruleset,
         ruleset_checksum=ruleset_checksum,
+        home_profile=home_profile,
+        away_profile=away_profile,
     )
     return trace.result
 
@@ -153,13 +136,23 @@ def simulate_game_trace(
     scheduled_innings: int,
     ruleset: SimulationRuleset | None = None,
     ruleset_checksum: str | None = None,
+    home_profile: TeamProfile | None = None,
+    away_profile: TeamProfile | None = None,
 ) -> GameSimulationTrace:
     active_ruleset = ruleset if ruleset is not None else DEFAULT_RULESET
     effective_scheduled_innings = max(1, min(scheduled_innings, active_ruleset.max_innings))
 
     rng = DeterministicRng(seed=seed, home_team_id=home_team_id, away_team_id=away_team_id)
-    home_profile = _team_profile(seed=seed, team_id=home_team_id)
-    away_profile = _team_profile(seed=seed, team_id=away_team_id)
+    home_profile = (
+        home_profile
+        if home_profile is not None
+        else synthetic_team_profile(seed=seed, team_id=home_team_id)
+    )
+    away_profile = (
+        away_profile
+        if away_profile is not None
+        else synthetic_team_profile(seed=seed, team_id=away_team_id)
+    )
 
     home_score = 0
     away_score = 0
@@ -304,18 +297,6 @@ def simulate_game_trace(
         plays=plays,
         line_score_home=line_score_home,
         line_score_away=line_score_away,
-    )
-
-
-def _team_profile(*, seed: int, team_id: int) -> TeamProfile:
-    return TeamProfile(
-        offense=_unit_interval(seed=seed, entity_id=team_id, salt=701),
-        discipline=_unit_interval(seed=seed, entity_id=team_id, salt=709),
-        power=_unit_interval(seed=seed, entity_id=team_id, salt=719),
-        speed=_unit_interval(seed=seed, entity_id=team_id, salt=727),
-        prevention=_unit_interval(seed=seed, entity_id=team_id, salt=733),
-        command=_unit_interval(seed=seed, entity_id=team_id, salt=739),
-        range_factor=_unit_interval(seed=seed, entity_id=team_id, salt=743),
     )
 
 

@@ -5,6 +5,7 @@ from typing import Protocol
 
 from baseball_sim.ingest.normalize import GameRecord, PlayerRecord, TeamRecord
 from baseball_sim.ingest.snapshot_store import StoredSnapshot
+from baseball_sim.ingest.stats import PlayerSeasonStatRecord
 
 
 class IngestRepository(Protocol):
@@ -17,6 +18,10 @@ class IngestRepository(Protocol):
     def upsert_players(self, *, snapshot_id: str, players: Sequence[PlayerRecord]) -> int: ...
 
     def upsert_games(self, *, snapshot_id: str, games: Sequence[GameRecord]) -> int: ...
+
+    def upsert_player_season_stats(
+        self, *, snapshot_id: str, records: Sequence[PlayerSeasonStatRecord]
+    ) -> int: ...
 
     def commit(self) -> None: ...
 
@@ -182,8 +187,96 @@ class PostgresIngestRepository:
             )
         return len(games)
 
+    def upsert_player_season_stats(
+        self, *, snapshot_id: str, records: Sequence[PlayerSeasonStatRecord]
+    ) -> int:
+        with self._conn.cursor() as cursor:
+            cursor.executemany(
+                """
+                INSERT INTO player_season_stats (
+                    player_id, season, team_id, stat_group,
+                    pa, ip, woba, xwoba, wrc_plus, fip, k_bb_ratio,
+                    at_bats, singles, doubles, triples, home_runs,
+                    walks, intentional_walks, hit_by_pitch, sacrifice_flies,
+                    strikeouts, stolen_bases, source_snapshot_id
+                )
+                VALUES (
+                    %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s,
+                    %s, %s, %s
+                )
+                ON CONFLICT (player_id, season, source_snapshot_id, stat_group) DO UPDATE
+                SET team_id = EXCLUDED.team_id,
+                    pa = EXCLUDED.pa,
+                    ip = EXCLUDED.ip,
+                    woba = EXCLUDED.woba,
+                    xwoba = EXCLUDED.xwoba,
+                    wrc_plus = EXCLUDED.wrc_plus,
+                    fip = EXCLUDED.fip,
+                    k_bb_ratio = EXCLUDED.k_bb_ratio,
+                    at_bats = EXCLUDED.at_bats,
+                    singles = EXCLUDED.singles,
+                    doubles = EXCLUDED.doubles,
+                    triples = EXCLUDED.triples,
+                    home_runs = EXCLUDED.home_runs,
+                    walks = EXCLUDED.walks,
+                    intentional_walks = EXCLUDED.intentional_walks,
+                    hit_by_pitch = EXCLUDED.hit_by_pitch,
+                    sacrifice_flies = EXCLUDED.sacrifice_flies,
+                    strikeouts = EXCLUDED.strikeouts,
+                    stolen_bases = EXCLUDED.stolen_bases,
+                    loaded_at_utc = NOW()
+                """,
+                [_player_season_stats_row(record, snapshot_id) for record in records],
+            )
+        return len(records)
+
     def commit(self) -> None:
         self._conn.commit()
 
     def rollback(self) -> None:
         self._conn.rollback()
+
+
+def _player_season_stats_row(
+    record: PlayerSeasonStatRecord, snapshot_id: str
+) -> tuple[object, ...]:
+    batting = record.batting
+    pitching = record.pitching
+    # Home runs, walks, HBP and strikeouts are shared columns: a hitting row fills
+    # them from the batting line, a pitching row from the pitching line.
+    home_runs = batting.home_runs if batting is not None else _p(pitching, "home_runs")
+    walks = batting.walks if batting is not None else _p(pitching, "walks")
+    hit_by_pitch = batting.hit_by_pitch if batting is not None else _p(pitching, "hit_by_pitch")
+    strikeouts = batting.strikeouts if batting is not None else _p(pitching, "strikeouts")
+    return (
+        record.player_id,
+        record.season,
+        record.team_id,
+        record.stat_group,
+        record.pa,
+        record.ip,
+        record.woba,
+        record.xwoba,
+        record.wrc_plus,
+        record.fip,
+        record.k_bb_ratio,
+        batting.at_bats if batting is not None else None,
+        batting.singles if batting is not None else None,
+        batting.doubles if batting is not None else None,
+        batting.triples if batting is not None else None,
+        home_runs,
+        walks,
+        batting.intentional_walks if batting is not None else None,
+        hit_by_pitch,
+        batting.sacrifice_flies if batting is not None else None,
+        strikeouts,
+        batting.stolen_bases if batting is not None else None,
+        snapshot_id,
+    )
+
+
+def _p(pitching: object, attribute: str) -> int | None:
+    return getattr(pitching, attribute) if pitching is not None else None
