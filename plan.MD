@@ -161,8 +161,12 @@ Stack decision:
 - [ ] Persist `simulation_runs` and expose `GET` by `match_id` for shareable replay.
 
 ### Phase 7.1 — Live game viewer
-- [ ] Scoreboard, animated diamond, play-by-play ticker, line score (consumes trace).
-- [ ] Replay-by-match_id route.
+- [x] Scaffold React + Vite + TS + Tailwind in `frontend/`; typed API client generated
+      from OpenAPI (`npm run gen:api`).
+- [x] Scoreboard, animated diamond, play-by-play ticker, line score, play-through
+      controls (play/pause/step/reset/speed) consuming `/simulate/game/play-by-play`.
+- [ ] Replay-by-match_id route (depends on `simulation_runs` persistence).
+- [ ] Team/player pickers backed by the catalog endpoints (replace hardcoded labels).
 
 ### Phase 7.2 — Analytics dashboard
 - [ ] Player/team compare UI over real sabermetrics; prediction probabilities; charts.

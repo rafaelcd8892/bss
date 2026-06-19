@@ -10,3 +10,4 @@ data/raw/
 game_logs/
 *.egg-info/
 .DS_Store
+.claude/settings.local.json

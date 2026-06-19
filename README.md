@@ -27,6 +27,26 @@ uvicorn baseball_sim.main:app --reload
 - `POST /api/v1/simulate/game`
 - `POST /api/v1/predict/game`
 
+## Web Frontend (live game viewer)
+A React + Vite + TypeScript app in `frontend/` renders the deterministic game as a live
+broadcast: scoreboard, animated diamond, play-by-play ticker, line score, and
+play/pause/step controls. The typed API client is generated from the backend's OpenAPI.
+
+```bash
+# terminal 1 — API
+uvicorn baseball_sim.main:app --port 8000
+
+# terminal 2 — frontend (Vite dev server proxies /api to :8000)
+cd frontend
+npm install
+npm run gen:api   # regenerate the typed client from openapi.json
+npm run dev
+```
+
+Production: `npm run build` emits `frontend/dist`, which the API serves automatically
+when present (single process hosts both API and UI). The game viewer needs no database
+(it uses the deterministic synthetic provider unless `BASEBALL_STATS_SOURCE=postgres`).
+
 ## Migrations
 Apply pending SQL migrations:
 ```bash
