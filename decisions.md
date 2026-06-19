@@ -268,9 +268,63 @@ When adding a new decision, use this format:
   - Reading precomputed metrics only (cannot rebuild team-profile aggregates).
   - Hard cutover to real data with no synthetic fallback (breaks offline/CI runs).
 
+## ADR-015: Web Interface — Backend Readiness and React Frontend
+- Date: 2026-06-19
+- Status: Accepted
+- Context:
+  - The API exposed only summaries; a rich UI needs the per-play trace, browsable
+    teams/players/rosters, and cross-origin access. None existed.
+  - Rafael is a Python developer; the JS frontend should carry minimal maintenance.
+- Decision:
+  - Backend readiness (Phase 7.0):
+    - `POST /simulate/game/play-by-play` returns the full deterministic trace (events,
+      bases, outs, running score, line score) via `simulate_game_trace`.
+    - Read-side `domain/catalog.py` (`CatalogRepository` + Postgres impl) behind a
+      FastAPI dependency, serving `GET /teams`, `/teams/{id}/roster`, `/players/{id}`.
+    - Migration `0003` persists `roster_memberships` (team→player per snapshot); the
+      pipeline now keeps the roster link it already fetched, so rosters serve from the
+      database without calling the external API at request time.
+    - Configurable CORS (`BASEBALL_CORS_ALLOW_ORIGINS`) and an optional static mount
+      serving `frontend/dist` so one process can host API + UI in production.
+  - Frontend (Phase 7.1): React + Vite + TypeScript + Tailwind in `frontend/`. The
+    typed API client is generated from the backend OpenAPI (`openapi-typescript` +
+    `openapi-fetch`) so the contract cannot drift. A live game viewer (scoreboard,
+    animated diamond, color-coded play-by-play ticker, line score, play-through
+    controls) consumes the play-by-play endpoint and needs no database.
+- Consequences:
+  - The UI builds on a stable, typed contract; the viewer runs offline (synthetic).
+  - Roster serving is snapshot-consistent, preserving the determinism contract.
+  - A JS toolchain now lives in the repo, but generated types keep hand-maintenance low.
+- Alternatives considered:
+  - Enhancing the Textual TUI (aesthetic ceiling) or a desktop app (packaging cost).
+  - Hand-written API types (drift risk); live MLB roster fetch at serve time (breaks
+    the snapshot/determinism contract).
+
+## ADR-016: Batter Attribution via Layered Lineup Providers
+- Date: 2026-06-19
+- Status: Accepted
+- Context:
+  - The simulator modeled offense at team level; plays were not attributed to a batter,
+    which limits the viewer's realism and future box-score features.
+- Decision:
+  - Thread an ordered lineup through the simulator. Each plate appearance names the
+    current batter; the 1-9 order persists across innings. Attribution is pure
+    labeling and never touches the RNG, so seeded games stay byte-for-byte reproducible.
+  - Resolve lineups with a layered `LineupProvider`: real names from the persisted
+    roster (`CatalogLineupProvider`) with a per-team synthetic fallback; the simulator
+    defaults to a deterministic synthetic lineup when none is supplied.
+- Consequences:
+  - The viewer shows batter names with no behavior change to outcomes.
+  - Pitcher attribution remains future work (defense is still team-level).
+- Alternatives considered:
+  - Synthetic-only attribution (no real names) or real-only (breaks offline runs).
+
 ---
 
 ## Change Log
+- 2026-06-19: Added ADR-016; batter attribution via layered lineup providers.
+- 2026-06-19: Added ADR-015; web-interface backend readiness (play-by-play, catalog
+  endpoints, roster-membership persistence, CORS) and the React live game viewer.
 - 2026-06-19: Added ADR-014; wired real sabermetrics into compare/simulate via the
   stats provider seam; CI now triggers on `master`.
 - 2026-02-22: Initialized ADR records for project kickoff.

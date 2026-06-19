@@ -3,8 +3,25 @@
 ## Planning Log
 - Last updated: 2026-06-19
 - Owner: Rafael + coding agents
-- Project status: Phase 2/3 deepened — real sabermetrics now feed compare and the
-  simulator via a stats-provider seam (synthetic fallback preserved). Phase 6 ongoing.
+- Project status: Real sabermetrics feed compare + the simulator (stats-provider seam);
+  Phase 7 web interface underway — live game viewer works with batter attribution.
+
+## Resume Here (next session)
+Done 2026-06-19: real sabermetrics seam (ADR-014); CI fix (`master`); play-by-play API;
+catalog endpoints + roster-membership persistence (migration 0003); CORS + static
+serving; React live game viewer (`frontend/`); batter attribution (ADR-015, ADR-016).
+Suite: 82 tests, ruff + mypy --strict clean; frontend `npm run build` clean.
+
+Open items, recommended order:
+1. Persist `simulation_runs` + `GET /games/{match_id}`; front `/replay/{match_id}` route
+   — closes Phase 7.0 and ships the shareable-replay headline feature. (needs Postgres)
+2. Team/player pickers in the UI backed by the catalog endpoints (replace `teams.ts`
+   hardcoded labels).
+3. Dashboard (Phase 7.2): compare + predict views over real sabermetrics, with charts.
+4. Pitcher attribution (simulator models defense at team level only today).
+5. Data depth: ingest fielding (→ `range_factor`) and Statcast xwOBA; ephemeral-PG
+   integration test for the Postgres stats/catalog paths.
+Run locally: `uvicorn baseball_sim.main:app --port 8000` + `cd frontend && npm run dev`.
 
 ## North Star
 Create a deterministic, scalable baseball simulator and sabermetrics intelligence platform that supports:
