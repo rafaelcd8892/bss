@@ -5,8 +5,10 @@ from baseball_sim.domain.contracts import (
     ComparePlayersResult,
     DeterministicContext,
     MetricComparison,
+    PlayByPlayEvent,
     PredictGameRequest,
     PredictGameResult,
+    SimulateGamePlayByPlayResult,
     SimulateGameRequest,
     SimulateGameResult,
 )
@@ -16,8 +18,13 @@ from baseball_sim.domain.stats_provider import (
     StatsProvider,
 )
 from baseball_sim.sim.hashing import scale
+from baseball_sim.sim.profiles import TeamProfile
 from baseball_sim.sim.rulesets import SimulationRuleset
-from baseball_sim.sim.state_machine import simulate_game_state_machine
+from baseball_sim.sim.state_machine import (
+    PlayTrace,
+    simulate_game_state_machine,
+    simulate_game_trace,
+)
 
 
 def _team_strength(seed: int, team_id: int, salt: int) -> float:
@@ -93,6 +100,22 @@ def compare_players(
     )
 
 
+def _resolve_profiles(
+    request: SimulateGameRequest,
+    provider: StatsProvider | None,
+) -> tuple[TeamProfile | None, TeamProfile | None, list[str]]:
+    if provider is None:
+        return None, None, []
+    seed = request.context.seed
+    home_profile = provider.team_profile(team_id=request.home_team_id, seed=seed)
+    away_profile = provider.team_profile(team_id=request.away_team_id, seed=seed)
+    note = (
+        "Team profiles sourced from stats provider "
+        f"({type(provider).__name__}) rather than seed-only synthesis."
+    )
+    return home_profile, away_profile, [note]
+
+
 def simulate_game(
     request: SimulateGameRequest,
     *,
@@ -100,20 +123,9 @@ def simulate_game(
     ruleset_checksum: str | None = None,
     provider: StatsProvider | None = None,
 ) -> SimulateGameResult:
-    seed = request.context.seed
-    home_profile = None
-    away_profile = None
-    extra_assumptions: list[str] = []
-    if provider is not None:
-        home_profile = provider.team_profile(team_id=request.home_team_id, seed=seed)
-        away_profile = provider.team_profile(team_id=request.away_team_id, seed=seed)
-        extra_assumptions.append(
-            "Team profiles sourced from stats provider "
-            f"({type(provider).__name__}) rather than seed-only synthesis."
-        )
-
+    home_profile, away_profile, extra_assumptions = _resolve_profiles(request, provider)
     engine_result = simulate_game_state_machine(
-        seed=seed,
+        seed=request.context.seed,
         home_team_id=request.home_team_id,
         away_team_id=request.away_team_id,
         scheduled_innings=request.innings,
@@ -130,6 +142,61 @@ def simulate_game(
         away_score=engine_result.away_score,
         winner_team_id=engine_result.winner_team_id,
         assumptions=engine_result.assumptions + extra_assumptions,
+    )
+
+
+def _to_play_by_play_event(play: PlayTrace) -> PlayByPlayEvent:
+    return PlayByPlayEvent(
+        play_index=play.play_index,
+        inning=play.inning,
+        half=play.half,
+        batting_team_id=play.batting_team_id,
+        fielding_team_id=play.fielding_team_id,
+        event=play.event,
+        outs_before=play.outs_before,
+        outs_after=play.outs_after,
+        bases_before=play.bases_before,
+        bases_after=play.bases_after,
+        runs_scored_on_play=play.runs_scored_on_play,
+        home_score_after_play=play.home_score_after_play,
+        away_score_after_play=play.away_score_after_play,
+        description=play.description,
+    )
+
+
+def simulate_game_play_by_play(
+    request: SimulateGameRequest,
+    *,
+    ruleset: SimulationRuleset | None = None,
+    ruleset_checksum: str | None = None,
+    provider: StatsProvider | None = None,
+) -> SimulateGamePlayByPlayResult:
+    home_profile, away_profile, extra_assumptions = _resolve_profiles(request, provider)
+    trace = simulate_game_trace(
+        seed=request.context.seed,
+        home_team_id=request.home_team_id,
+        away_team_id=request.away_team_id,
+        scheduled_innings=request.innings,
+        ruleset=ruleset,
+        ruleset_checksum=ruleset_checksum,
+        home_profile=home_profile,
+        away_profile=away_profile,
+    )
+    engine_result = trace.result
+    summary = SimulateGameResult(
+        home_team_id=request.home_team_id,
+        away_team_id=request.away_team_id,
+        innings_played=engine_result.innings_played,
+        home_score=engine_result.home_score,
+        away_score=engine_result.away_score,
+        winner_team_id=engine_result.winner_team_id,
+        assumptions=engine_result.assumptions + extra_assumptions,
+    )
+    return SimulateGamePlayByPlayResult(
+        summary=summary,
+        line_score_home=trace.line_score_home,
+        line_score_away=trace.line_score_away,
+        plays=[_to_play_by_play_event(play) for play in trace.plays],
     )
 
 

@@ -141,6 +141,31 @@ Exit criteria:
 - [ ] Ingest Statcast expected stats to replace synthetic `xwoba`.
 - [ ] Integration test of the Postgres stats path against ephemeral PostgreSQL.
 
+## Phase 7: Web Interface (started 2026-06-19)
+Goal: an attractive web app — a live game viewer first, then an analytics dashboard.
+Deterministic replay (share a URL, reproduce the exact game) is the headline feature.
+
+Stack decision:
+- Frontend: React + Vite + TypeScript, lives in `frontend/` (monorepo). Tailwind for
+  styling, TanStack Query for data, `openapi-typescript` to generate the API client
+  from FastAPI's OpenAPI so the contract never drifts.
+- Dev: Vite proxies `/api` to uvicorn. Prod: FastAPI can serve the static build.
+
+### Phase 7.0 — Backend readiness (Python; the real blocker)
+- [ ] Expose the play-by-play trace via API (reuse `simulate_game_trace`).
+- [ ] Add read-side repository + browse endpoints: `GET /teams`, `/teams/{id}/roster`,
+      `/players/{id}`.
+- [ ] Include team/player names (not just IDs) in serving responses.
+- [ ] Add CORS middleware (configurable allowed origins).
+- [ ] Persist `simulation_runs` and expose `GET` by `match_id` for shareable replay.
+
+### Phase 7.1 — Live game viewer
+- [ ] Scoreboard, animated diamond, play-by-play ticker, line score (consumes trace).
+- [ ] Replay-by-match_id route.
+
+### Phase 7.2 — Analytics dashboard
+- [ ] Player/team compare UI over real sabermetrics; prediction probabilities; charts.
+
 ## Risks and Mitigations
 - External API schema changes:
   - Mitigation: contract tests and versioned parsers.

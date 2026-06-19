@@ -81,6 +81,46 @@ class SimulateGameResponse(BaseModel):
     result: SimulateGameResult
 
 
+PlayByPlayEventType = Literal[
+    "out",
+    "walk",
+    "single",
+    "double",
+    "triple",
+    "home_run",
+    "tiebreaker",
+]
+
+
+class PlayByPlayEvent(BaseModel):
+    play_index: int = Field(..., ge=1)
+    inning: int = Field(..., ge=1)
+    half: Literal["top", "bottom"]
+    batting_team_id: PositiveInt
+    fielding_team_id: PositiveInt
+    event: PlayByPlayEventType
+    outs_before: int = Field(..., ge=0, le=3)
+    outs_after: int = Field(..., ge=0, le=3)
+    bases_before: str = Field(..., pattern=r"^[01]{3}$")
+    bases_after: str = Field(..., pattern=r"^[01]{3}$")
+    runs_scored_on_play: int = Field(..., ge=0)
+    home_score_after_play: int = Field(..., ge=0)
+    away_score_after_play: int = Field(..., ge=0)
+    description: str
+
+
+class SimulateGamePlayByPlayResult(BaseModel):
+    summary: SimulateGameResult
+    line_score_home: list[int]
+    line_score_away: list[int]
+    plays: list[PlayByPlayEvent]
+
+
+class SimulateGamePlayByPlayResponse(BaseModel):
+    meta: ResponseMeta
+    result: SimulateGamePlayByPlayResult
+
+
 class PredictGameRequest(BaseModel):
     home_team_id: PositiveInt
     away_team_id: PositiveInt

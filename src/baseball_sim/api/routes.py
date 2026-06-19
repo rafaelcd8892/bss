@@ -9,11 +9,17 @@ from baseball_sim.domain.contracts import (
     PredictGameRequest,
     PredictGameResponse,
     ResponseMeta,
+    SimulateGamePlayByPlayResponse,
     SimulateGameRequest,
     SimulateGameResponse,
 )
 from baseball_sim.domain.provider_factory import get_stats_provider
-from baseball_sim.domain.service import compare_players, predict_game, simulate_game
+from baseball_sim.domain.service import (
+    compare_players,
+    predict_game,
+    simulate_game,
+    simulate_game_play_by_play,
+)
 from baseball_sim.sim.rulesets import load_ruleset_from_path
 
 router = APIRouter()
@@ -51,6 +57,23 @@ def simulate_game_endpoint(
         provider=get_stats_provider(settings),
     )
     return SimulateGameResponse(meta=ResponseMeta(context=request.context), result=result)
+
+
+@router.post("/simulate/game/play-by-play", response_model=SimulateGamePlayByPlayResponse)
+def simulate_game_play_by_play_endpoint(
+    request: SimulateGameRequest,
+    settings: SettingsDependency,
+) -> SimulateGamePlayByPlayResponse:
+    loaded_ruleset = load_ruleset_from_path(settings.simulator_ruleset_path)
+    result = simulate_game_play_by_play(
+        request,
+        ruleset=loaded_ruleset.ruleset,
+        ruleset_checksum=loaded_ruleset.checksum_sha256,
+        provider=get_stats_provider(settings),
+    )
+    return SimulateGamePlayByPlayResponse(
+        meta=ResponseMeta(context=request.context), result=result
+    )
 
 
 @router.post("/predict/game", response_model=PredictGameResponse)
