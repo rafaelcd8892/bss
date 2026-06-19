@@ -239,6 +239,10 @@ export interface components {
             away_score_after_play: number;
             /** Description */
             description: string;
+            /** Batter Id */
+            batter_id?: number | null;
+            /** Batter Name */
+            batter_name?: string | null;
         };
         /** PlayerSummary */
         PlayerSummary: {

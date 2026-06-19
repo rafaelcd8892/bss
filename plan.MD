@@ -165,8 +165,12 @@ Stack decision:
       from OpenAPI (`npm run gen:api`).
 - [x] Scoreboard, animated diamond, play-by-play ticker, line score, play-through
       controls (play/pause/step/reset/speed) consuming `/simulate/game/play-by-play`.
+- [x] Batter attribution: thread lineups through the simulator so each play names the
+      batter (rotating 1-9, persisted across innings). Layered lineup provider — real
+      from the persisted roster, synthetic fallback. Pure labeling; determinism intact.
 - [ ] Replay-by-match_id route (depends on `simulation_runs` persistence).
 - [ ] Team/player pickers backed by the catalog endpoints (replace hardcoded labels).
+- [ ] Pitcher attribution (simulator models defense at team level only today).
 
 ### Phase 7.2 — Analytics dashboard
 - [ ] Player/team compare UI over real sabermetrics; prediction probabilities; charts.

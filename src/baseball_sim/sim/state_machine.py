@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Literal, cast
 
 from baseball_sim.sim.hashing import unit_interval
+from baseball_sim.sim.lineups import Batter, synthetic_lineup
 from baseball_sim.sim.profiles import TeamProfile, synthetic_team_profile
 from baseball_sim.sim.rulesets import DEFAULT_RULESET, SimulationRuleset
 
@@ -59,6 +60,8 @@ class PlayTrace:
     home_score_after_play: int
     away_score_after_play: int
     description: str
+    batter_id: int | None = None
+    batter_name: str | None = None
 
 
 @dataclass(frozen=True)
@@ -72,6 +75,7 @@ class HalfInningResult:
     home_score_end: int
     away_score_end: int
     plays: list[PlayTrace]
+    ending_order_index: int = 0
 
 
 @dataclass(frozen=True)
@@ -138,6 +142,8 @@ def simulate_game_trace(
     ruleset_checksum: str | None = None,
     home_profile: TeamProfile | None = None,
     away_profile: TeamProfile | None = None,
+    home_lineup: list[Batter] | None = None,
+    away_lineup: list[Batter] | None = None,
 ) -> GameSimulationTrace:
     active_ruleset = ruleset if ruleset is not None else DEFAULT_RULESET
     effective_scheduled_innings = max(1, min(scheduled_innings, active_ruleset.max_innings))
@@ -153,11 +159,19 @@ def simulate_game_trace(
         if away_profile is not None
         else synthetic_team_profile(seed=seed, team_id=away_team_id)
     )
+    home_lineup = (
+        home_lineup if home_lineup else synthetic_lineup(seed=seed, team_id=home_team_id)
+    )
+    away_lineup = (
+        away_lineup if away_lineup else synthetic_lineup(seed=seed, team_id=away_team_id)
+    )
 
     home_score = 0
     away_score = 0
     inning = 1
     play_index = 1
+    away_order_index = 0
+    home_order_index = 0
     reached_plate_appearance_cap = False
 
     plays: list[PlayTrace] = []
@@ -179,8 +193,11 @@ def simulate_game_trace(
             play_index_start=play_index,
             batting_team_id=away_team_id,
             fielding_team_id=home_team_id,
+            offense_lineup=away_lineup,
+            order_index_start=away_order_index,
         )
         play_index += len(top.plays)
+        away_order_index = top.ending_order_index
         plays.extend(top.plays)
         home_score = top.home_score_end
         away_score = top.away_score_end
@@ -211,8 +228,11 @@ def simulate_game_trace(
             play_index_start=play_index,
             batting_team_id=home_team_id,
             fielding_team_id=away_team_id,
+            offense_lineup=home_lineup,
+            order_index_start=home_order_index,
         )
         play_index += len(bottom.plays)
+        home_order_index = bottom.ending_order_index
         plays.extend(bottom.plays)
         home_score = bottom.home_score_end
         away_score = bottom.away_score_end
@@ -315,6 +335,8 @@ def _simulate_half_inning(
     play_index_start: int,
     batting_team_id: int,
     fielding_team_id: int,
+    offense_lineup: list[Batter],
+    order_index_start: int,
 ) -> HalfInningResult:
     probabilities = _event_probabilities(
         offense_profile=offense_profile,
@@ -331,6 +353,7 @@ def _simulate_half_inning(
         state.on_second = True
 
     play_index = play_index_start
+    order_index = order_index_start
     walkoff = False
     plays: list[PlayTrace] = []
 
@@ -338,6 +361,8 @@ def _simulate_half_inning(
         outs_before = state.outs
         runs_before = state.runs
         bases_before = _bases_key(state)
+        batter = _batter_at(offense_lineup, order_index)
+        order_index += 1
 
         event = _sample_event(roll=rng.next_unit(), probabilities=probabilities)
         _apply_event(event=event, state=state)
@@ -370,6 +395,8 @@ def _simulate_half_inning(
                 description=_describe_play(
                     event=event, runs_scored=runs_scored, outs_after=outs_after
                 ),
+                batter_id=batter.player_id if batter is not None else None,
+                batter_name=batter.name if batter is not None else None,
             )
         )
         play_index += 1
@@ -393,7 +420,14 @@ def _simulate_half_inning(
         home_score_end=home_score,
         away_score_end=away_score,
         plays=plays,
+        ending_order_index=order_index,
     )
+
+
+def _batter_at(lineup: list[Batter], order_index: int) -> Batter | None:
+    if not lineup:
+        return None
+    return lineup[order_index % len(lineup)]
 
 
 def _event_probabilities(

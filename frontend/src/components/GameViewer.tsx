@@ -110,7 +110,13 @@ export function GameViewer() {
       <div className="grid grid-cols-[230px_minmax(0,1fr)] gap-2.5">
         <div className="rounded-md border border-neutral-200 bg-white p-2">
           <Diamond bases={current?.bases_after ?? "000"} />
-          <div className="px-1.5 pb-1 pt-1 text-xs text-neutral-500">
+          {current?.batter_name && (
+            <div className="flex items-center gap-1.5 px-1.5 pt-1 text-[13px]">
+              <span className="text-neutral-400">at bat</span>
+              <span className="font-medium">{current.batter_name}</span>
+            </div>
+          )}
+          <div className="px-1.5 pb-1 pt-0.5 text-xs text-neutral-500">
             {current ? `play ${current.play_index} of ${plays.length}` : "ready"}
           </div>
         </div>

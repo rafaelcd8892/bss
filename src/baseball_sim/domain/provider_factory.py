@@ -9,6 +9,7 @@ from __future__ import annotations
 from functools import lru_cache
 
 from baseball_sim.config import Settings, get_settings
+from baseball_sim.domain.lineup_provider import CatalogLineupProvider, LineupProvider
 from baseball_sim.domain.stats_provider import StatsProvider
 
 
@@ -23,4 +24,11 @@ def get_stats_provider(settings: Settings | None = None) -> StatsProvider | None
     app_settings = settings if settings is not None else get_settings()
     if app_settings.stats_source == "postgres":
         return _postgres_provider(app_settings.db_dsn, app_settings.stats_season)
+    return None
+
+
+def get_lineup_provider(settings: Settings | None = None) -> LineupProvider | None:
+    app_settings = settings if settings is not None else get_settings()
+    if app_settings.stats_source == "postgres":
+        return CatalogLineupProvider(dsn=app_settings.db_dsn)
     return None

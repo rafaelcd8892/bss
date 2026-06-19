@@ -518,6 +518,28 @@
           "description": {
             "type": "string",
             "title": "Description"
+          },
+          "batter_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Batter Id"
+          },
+          "batter_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Batter Name"
           }
         },
         "type": "object",

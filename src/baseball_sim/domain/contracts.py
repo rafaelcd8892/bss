@@ -132,6 +132,8 @@ class PlayByPlayEvent(BaseModel):
     home_score_after_play: int = Field(..., ge=0)
     away_score_after_play: int = Field(..., ge=0)
     description: str
+    batter_id: int | None = None
+    batter_name: str | None = None
 
 
 class SimulateGamePlayByPlayResult(BaseModel):

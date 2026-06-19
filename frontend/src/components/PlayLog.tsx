@@ -30,7 +30,10 @@ export function PlayLog({ plays }: PlayLogProps) {
               className={`flex gap-2 border-l-[3px] px-2.5 py-1.5 ${style.color}`}
             >
               <span className="w-9 shrink-0 text-xs font-medium">{style.label}</span>
-              <span className="text-[13px] leading-snug">{play.description}</span>
+              <span className="text-[13px] leading-snug">
+                {play.batter_name && <span className="font-medium">{play.batter_name} — </span>}
+                {play.description}
+              </span>
             </div>
           );
         })

@@ -18,7 +18,7 @@ from baseball_sim.domain.contracts import (
     TeamListResponse,
     TeamRosterResponse,
 )
-from baseball_sim.domain.provider_factory import get_stats_provider
+from baseball_sim.domain.provider_factory import get_lineup_provider, get_stats_provider
 from baseball_sim.domain.service import (
     compare_players,
     predict_game,
@@ -104,6 +104,7 @@ def simulate_game_play_by_play_endpoint(
         ruleset=loaded_ruleset.ruleset,
         ruleset_checksum=loaded_ruleset.checksum_sha256,
         provider=get_stats_provider(settings),
+        lineup_provider=get_lineup_provider(settings),
     )
     return SimulateGamePlayByPlayResponse(
         meta=ResponseMeta(context=request.context), result=result

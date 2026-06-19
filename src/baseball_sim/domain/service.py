@@ -12,6 +12,7 @@ from baseball_sim.domain.contracts import (
     SimulateGameRequest,
     SimulateGameResult,
 )
+from baseball_sim.domain.lineup_provider import LineupProvider
 from baseball_sim.domain.stats_provider import (
     DEFAULT_STATS_PROVIDER,
     METRIC_SPECS,
@@ -161,6 +162,8 @@ def _to_play_by_play_event(play: PlayTrace) -> PlayByPlayEvent:
         home_score_after_play=play.home_score_after_play,
         away_score_after_play=play.away_score_after_play,
         description=play.description,
+        batter_id=play.batter_id,
+        batter_name=play.batter_name,
     )
 
 
@@ -170,10 +173,17 @@ def simulate_game_play_by_play(
     ruleset: SimulationRuleset | None = None,
     ruleset_checksum: str | None = None,
     provider: StatsProvider | None = None,
+    lineup_provider: LineupProvider | None = None,
 ) -> SimulateGamePlayByPlayResult:
     home_profile, away_profile, extra_assumptions = _resolve_profiles(request, provider)
+    seed = request.context.seed
+    home_lineup = None
+    away_lineup = None
+    if lineup_provider is not None:
+        home_lineup = lineup_provider.lineup(team_id=request.home_team_id, seed=seed)
+        away_lineup = lineup_provider.lineup(team_id=request.away_team_id, seed=seed)
     trace = simulate_game_trace(
-        seed=request.context.seed,
+        seed=seed,
         home_team_id=request.home_team_id,
         away_team_id=request.away_team_id,
         scheduled_innings=request.innings,
@@ -181,6 +191,8 @@ def simulate_game_play_by_play(
         ruleset_checksum=ruleset_checksum,
         home_profile=home_profile,
         away_profile=away_profile,
+        home_lineup=home_lineup,
+        away_lineup=away_lineup,
     )
     engine_result = trace.result
     summary = SimulateGameResult(
