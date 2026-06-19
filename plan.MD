@@ -156,7 +156,8 @@ Stack decision:
 - [x] Add read-side repository + browse endpoints: `GET /teams`, `/teams/{id}/roster`,
       `/players/{id}` (`domain/catalog.py`; roster from persisted memberships).
 - [x] Include team/player names (not just IDs) in catalog responses.
-- [ ] Add CORS middleware (configurable allowed origins).
+- [x] Add CORS middleware (configurable via `BASEBALL_CORS_ALLOW_ORIGINS`) and an
+      optional static mount that serves `frontend/dist` when present.
 - [ ] Persist `simulation_runs` and expose `GET` by `match_id` for shareable replay.
 
 ### Phase 7.1 — Live game viewer

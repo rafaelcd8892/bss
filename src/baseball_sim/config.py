@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     simulator_ruleset_path: str = "rulesets/mlb_2026_regular.json"
     stats_source: str = "synthetic"
     stats_season: int = 2026
+    cors_allow_origins: str = "*"
+    frontend_dist_dir: str = "frontend/dist"
     default_seed: int = 42
     default_model_version: str = "baseline-v1"
     default_data_snapshot_id: str = "snapshot-bootstrap-0001"
@@ -28,6 +30,12 @@ class Settings(BaseSettings):
         env_file=".env",
         extra="ignore",
     )
+
+    def cors_origin_list(self) -> list[str]:
+        raw = self.cors_allow_origins.strip()
+        if raw in ("", "*"):
+            return ["*"]
+        return [origin.strip() for origin in raw.split(",") if origin.strip()]
 
 
 @lru_cache(maxsize=1)
