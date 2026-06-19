@@ -26,6 +26,13 @@ class PlayerRecord:
 
 
 @dataclass(frozen=True)
+class RosterMembershipRecord:
+    team_id: int
+    player_id: int
+    primary_position: str | None
+
+
+@dataclass(frozen=True)
 class GameRecord:
     game_pk: int
     game_date: date
@@ -108,6 +115,43 @@ def normalize_players(rosters_by_team: dict[str, list[dict[str, Any]]]) -> list[
             )
 
     return list(player_map.values())
+
+
+def normalize_roster_memberships(
+    rosters_by_team: dict[str, list[dict[str, Any]]],
+) -> list[RosterMembershipRecord]:
+    memberships: list[RosterMembershipRecord] = []
+    seen: set[tuple[int, int]] = set()
+
+    for team_key, roster in rosters_by_team.items():
+        try:
+            team_id = int(team_key)
+        except (TypeError, ValueError):
+            continue
+        for row in roster:
+            person = row.get("person")
+            if not isinstance(person, dict):
+                continue
+            player_id = person.get("id")
+            if not isinstance(player_id, int):
+                continue
+            key = (team_id, player_id)
+            if key in seen:
+                continue
+            seen.add(key)
+
+            position = row.get("position")
+            primary_position = position.get("abbreviation") if isinstance(position, dict) else None
+            memberships.append(
+                RosterMembershipRecord(
+                    team_id=team_id,
+                    player_id=player_id,
+                    primary_position=primary_position
+                    if isinstance(primary_position, str)
+                    else None,
+                )
+            )
+    return memberships
 
 
 def normalize_games(schedule_dates: list[dict[str, Any]]) -> list[GameRecord]:

@@ -1,4 +1,31 @@
-from baseball_sim.ingest.normalize import normalize_games, normalize_players, normalize_teams
+from baseball_sim.ingest.normalize import (
+    normalize_games,
+    normalize_players,
+    normalize_roster_memberships,
+    normalize_teams,
+)
+
+
+def test_normalize_roster_memberships() -> None:
+    def entry(player_id: int, name: str, pos: str) -> dict:
+        return {"person": {"id": player_id, "fullName": name}, "position": {"abbreviation": pos}}
+
+    rosters = {
+        "147": [
+            entry(592450, "Aaron Judge", "RF"),
+            entry(592450, "Aaron Judge", "DH"),
+            entry(543037, "Gerrit Cole", "P"),
+        ],
+        "121": [],
+        "bad": [{"person": {"id": 1, "fullName": "x"}}],
+    }
+    memberships = normalize_roster_memberships(rosters)
+
+    # Duplicate (147, 592450) collapses; team "bad" key is skipped.
+    assert len(memberships) == 2
+    judge = next(m for m in memberships if m.player_id == 592450)
+    assert judge.team_id == 147
+    assert judge.primary_position == "RF"
 
 
 def test_normalize_teams() -> None:

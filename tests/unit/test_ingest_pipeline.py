@@ -64,6 +64,7 @@ class FakeRepository:
         self.teams: list[TeamRecord] = []
         self.players: list[PlayerRecord] = []
         self.games: list[GameRecord] = []
+        self.memberships: list = []
         self.committed = False
         self.rolled_back = False
 
@@ -85,6 +86,13 @@ class FakeRepository:
         del snapshot_id
         self.games = games
         return len(games)
+
+    def upsert_roster_memberships(
+        self, *, snapshot_id: str, season: int, memberships: list
+    ) -> int:
+        del snapshot_id, season
+        self.memberships = list(memberships)
+        return len(self.memberships)
 
     def commit(self) -> None:
         self.committed = True
@@ -114,3 +122,5 @@ async def test_ingest_pipeline_writes_snapshots_and_upserts(tmp_path: Path) -> N
     assert result.teams_upserted == 1
     assert result.players_upserted == 1
     assert result.games_upserted == 1
+    assert result.memberships_upserted == 1
+    assert repository.memberships[0].player_id == 592450

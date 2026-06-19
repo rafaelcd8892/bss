@@ -33,6 +33,31 @@ class ResponseMeta(BaseModel):
     context: DeterministicContext
 
 
+class TeamSummary(BaseModel):
+    team_id: PositiveInt
+    name: str
+    abbreviation: str | None = None
+    league_name: str | None = None
+    division_name: str | None = None
+
+
+class TeamListResponse(BaseModel):
+    teams: list[TeamSummary]
+
+
+class PlayerSummary(BaseModel):
+    player_id: PositiveInt
+    full_name: str
+    primary_position: str | None = None
+    bats: str | None = None
+    throws: str | None = None
+
+
+class TeamRosterResponse(BaseModel):
+    team_id: PositiveInt
+    players: list[PlayerSummary]
+
+
 class ComparePlayersRequest(BaseModel):
     left_player_id: PositiveInt
     right_player_id: PositiveInt

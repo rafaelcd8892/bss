@@ -37,6 +37,7 @@ async def _main() -> None:
                 "stats_snapshot_id": result.stats_snapshot_id,
                 "teams_upserted": result.teams_upserted,
                 "players_upserted": result.players_upserted,
+                "memberships_upserted": result.memberships_upserted,
                 "games_upserted": result.games_upserted,
                 "player_stats_upserted": result.player_stats_upserted,
             },

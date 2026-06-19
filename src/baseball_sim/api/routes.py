@@ -1,17 +1,22 @@
+from collections.abc import Iterator
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from baseball_sim.config import Settings, get_settings
+from baseball_sim.domain.catalog import CatalogRepository, PostgresCatalogRepository
 from baseball_sim.domain.contracts import (
     ComparePlayersRequest,
     ComparePlayersResponse,
+    PlayerSummary,
     PredictGameRequest,
     PredictGameResponse,
     ResponseMeta,
     SimulateGamePlayByPlayResponse,
     SimulateGameRequest,
     SimulateGameResponse,
+    TeamListResponse,
+    TeamRosterResponse,
 )
 from baseball_sim.domain.provider_factory import get_stats_provider
 from baseball_sim.domain.service import (
@@ -26,6 +31,17 @@ router = APIRouter()
 SettingsDependency = Annotated[Settings, Depends(get_settings)]
 
 
+def get_catalog_repository(settings: SettingsDependency) -> Iterator[CatalogRepository]:
+    repository = PostgresCatalogRepository(dsn=settings.db_dsn)
+    try:
+        yield repository
+    finally:
+        repository.close()
+
+
+CatalogDependency = Annotated[CatalogRepository, Depends(get_catalog_repository)]
+
+
 @router.get("/health")
 def health(settings: SettingsDependency) -> dict[str, str]:
     return {
@@ -33,6 +49,24 @@ def health(settings: SettingsDependency) -> dict[str, str]:
         "service": settings.app_name,
         "environment": settings.app_env,
     }
+
+
+@router.get("/teams", response_model=TeamListResponse)
+def list_teams_endpoint(catalog: CatalogDependency) -> TeamListResponse:
+    return TeamListResponse(teams=catalog.list_teams())
+
+
+@router.get("/teams/{team_id}/roster", response_model=TeamRosterResponse)
+def get_team_roster_endpoint(team_id: int, catalog: CatalogDependency) -> TeamRosterResponse:
+    return TeamRosterResponse(team_id=team_id, players=catalog.get_team_roster(team_id=team_id))
+
+
+@router.get("/players/{player_id}", response_model=PlayerSummary)
+def get_player_endpoint(player_id: int, catalog: CatalogDependency) -> PlayerSummary:
+    player = catalog.get_player(player_id=player_id)
+    if player is None:
+        raise HTTPException(status_code=404, detail=f"player {player_id} not found")
+    return player
 
 
 @router.post("/compare/players", response_model=ComparePlayersResponse)

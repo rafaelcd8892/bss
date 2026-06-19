@@ -140,6 +140,12 @@ class FakeStatsRepository:
         del snapshot_id
         return len(list(games))
 
+    def upsert_roster_memberships(
+        self, *, snapshot_id: str, season: int, memberships: Any
+    ) -> int:
+        del snapshot_id, season
+        return len(list(memberships))
+
     def upsert_player_season_stats(
         self, *, snapshot_id: str, records: Any
     ) -> int:

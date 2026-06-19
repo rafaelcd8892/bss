@@ -3,7 +3,12 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Protocol
 
-from baseball_sim.ingest.normalize import GameRecord, PlayerRecord, TeamRecord
+from baseball_sim.ingest.normalize import (
+    GameRecord,
+    PlayerRecord,
+    RosterMembershipRecord,
+    TeamRecord,
+)
 from baseball_sim.ingest.snapshot_store import StoredSnapshot
 from baseball_sim.ingest.stats import PlayerSeasonStatRecord
 
@@ -21,6 +26,14 @@ class IngestRepository(Protocol):
 
     def upsert_player_season_stats(
         self, *, snapshot_id: str, records: Sequence[PlayerSeasonStatRecord]
+    ) -> int: ...
+
+    def upsert_roster_memberships(
+        self,
+        *,
+        snapshot_id: str,
+        season: int,
+        memberships: Sequence[RosterMembershipRecord],
     ) -> int: ...
 
     def commit(self) -> None: ...
@@ -232,6 +245,38 @@ class PostgresIngestRepository:
                 [_player_season_stats_row(record, snapshot_id) for record in records],
             )
         return len(records)
+
+    def upsert_roster_memberships(
+        self,
+        *,
+        snapshot_id: str,
+        season: int,
+        memberships: Sequence[RosterMembershipRecord],
+    ) -> int:
+        with self._conn.cursor() as cursor:
+            cursor.executemany(
+                """
+                INSERT INTO roster_memberships (
+                    team_id, player_id, season, primary_position, source_snapshot_id
+                )
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (team_id, player_id, source_snapshot_id) DO UPDATE
+                SET season = EXCLUDED.season,
+                    primary_position = EXCLUDED.primary_position,
+                    loaded_at_utc = NOW()
+                """,
+                [
+                    (
+                        membership.team_id,
+                        membership.player_id,
+                        season,
+                        membership.primary_position,
+                        snapshot_id,
+                    )
+                    for membership in memberships
+                ],
+            )
+        return len(memberships)
 
     def commit(self) -> None:
         self._conn.commit()

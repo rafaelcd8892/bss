@@ -11,6 +11,7 @@ from baseball_sim.ingest.normalize import (
     PlayerRecord,
     normalize_games,
     normalize_players,
+    normalize_roster_memberships,
     normalize_teams,
 )
 from baseball_sim.ingest.repository import IngestRepository, PostgresIngestRepository
@@ -53,6 +54,7 @@ class IngestionResult:
     teams_upserted: int
     players_upserted: int
     games_upserted: int
+    memberships_upserted: int = 0
     stats_snapshot_id: str | None = None
     player_stats_upserted: int = 0
 
@@ -164,11 +166,15 @@ async def _ingest_with_client(
 
     teams = normalize_teams(teams_payload)
     players = normalize_players(rosters_payload)
+    memberships = normalize_roster_memberships(rosters_payload)
     games = normalize_games(schedule_dates)
 
     teams_upserted = repository.upsert_teams(snapshot_id=teams_snapshot.snapshot_id, teams=teams)
     players_upserted = repository.upsert_players(
         snapshot_id=rosters_snapshot.snapshot_id, players=players
+    )
+    memberships_upserted = repository.upsert_roster_memberships(
+        snapshot_id=rosters_snapshot.snapshot_id, season=season, memberships=memberships
     )
     games_upserted = repository.upsert_games(snapshot_id=schedule_snapshot.snapshot_id, games=games)
 
@@ -190,6 +196,7 @@ async def _ingest_with_client(
         teams_upserted=teams_upserted,
         players_upserted=players_upserted,
         games_upserted=games_upserted,
+        memberships_upserted=memberships_upserted,
         stats_snapshot_id=stats_snapshot_id,
         player_stats_upserted=player_stats_upserted,
     )

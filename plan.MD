@@ -126,7 +126,7 @@ Exit criteria:
 5. [x] Define and store deterministic match IDs mapped to seeds.
 6. [x] Add roster seeder and synthetic player profile generator.
 7. [x] Wire roster loading fallback chain (API -> synthetic seeded).
-8. [ ] Persist roster membership relation (`player_id` to `team_id` by snapshot).
+8. [x] Persist roster membership relation (`player_id` to `team_id` by snapshot) — migration `0003`.
 9. [ ] Add simulation run persistence in API endpoints.
 10. [x] Fix CI trigger (now runs on `master`) — matrix expansion still open.
 
@@ -152,10 +152,10 @@ Stack decision:
 - Dev: Vite proxies `/api` to uvicorn. Prod: FastAPI can serve the static build.
 
 ### Phase 7.0 — Backend readiness (Python; the real blocker)
-- [ ] Expose the play-by-play trace via API (reuse `simulate_game_trace`).
-- [ ] Add read-side repository + browse endpoints: `GET /teams`, `/teams/{id}/roster`,
-      `/players/{id}`.
-- [ ] Include team/player names (not just IDs) in serving responses.
+- [x] Expose the play-by-play trace via API (reuse `simulate_game_trace`).
+- [x] Add read-side repository + browse endpoints: `GET /teams`, `/teams/{id}/roster`,
+      `/players/{id}` (`domain/catalog.py`; roster from persisted memberships).
+- [x] Include team/player names (not just IDs) in catalog responses.
 - [ ] Add CORS middleware (configurable allowed origins).
 - [ ] Persist `simulation_runs` and expose `GET` by `match_id` for shareable replay.
 
