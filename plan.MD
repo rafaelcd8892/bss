@@ -339,12 +339,20 @@ with `group=fielding`, returning one split per position played, including
       ingested rather than the neutral placeholder.
 - [x] Collapse season reads to the newest snapshot (ADR-022) — found while re-ingesting:
       the provider was summing every snapshot into each club's aggregate.
-- [ ] Pitcher attribution in the simulator, alongside the same defensive model.
+- [x] Pitcher attribution in the simulator: a five-man rotation picked by match id, a
+      bullpen spent worst-FIP-first, and outing lengths from each pitcher's own season
+      (ADR-023). Pure labeling, like the batting order — a test pins that supplying a
+      staff leaves every event identical.
 
 Done when: `range_factor` varies by club, and the Teams table shows it. On real 2026
 data it spreads 0.311–0.768 across thirty distinct clubs. The goldens needed no
 refresh: the seeded path builds profiles from hashes and never reads these lines, so
 only Postgres-served runs move — the plan's assumption there was wrong, not the work.
+
+Left open, and worth naming: the relief model pulls a starter on outs recorded, not on
+how the game is going; a pitcher's own quality does not yet influence the plate
+appearances he throws (the defense factor is still the club's, not the man's); and the
+viewer names the pitcher but the box score does not credit him.
 
 ### Step 6 — Statcast expected stats
 - [ ] Baseball Savant ingestion (a genuinely separate source per ADR-003), including a

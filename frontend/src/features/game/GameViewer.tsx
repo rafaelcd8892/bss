@@ -267,6 +267,9 @@ export function GameViewer({ dark }: { dark: boolean }) {
             <div className="truncate text-[13px] font-medium text-ink">
               {current?.batter_name ?? "—"}
             </div>
+            <div className="mt-1 text-[11px] text-faint">
+              facing <span className="text-muted">{current?.pitcher_name ?? "—"}</span>
+            </div>
             <div className="mt-1.5 line-clamp-2 text-xs text-muted">
               {current?.description ?? "Press simulate to start the game."}
             </div>

@@ -31,3 +31,17 @@ def create_match_id(
     ).encode("utf-8")
     digest = hashlib.sha256(canonical).hexdigest()[:16]
     return f"match_{digest}"
+
+
+def rotation_slot_for(match_id: str) -> int:
+    """Which turn of the rotation this game falls on.
+
+    Derived from the match id so it is stable for a given matchup and spreads across
+    the rotation over a series, without needing a schedule the simulator does not have.
+    """
+
+    digest = match_id.rsplit("_", 1)[-1]
+    try:
+        return int(digest, 16)
+    except ValueError:
+        return 0

@@ -531,7 +531,59 @@ When adding a new decision, use this format:
 
 ---
 
+## ADR-023: Pitcher Attribution — Rotation by Match, Outings from Each Pitcher's Season
+- Date: 2026-09-06
+- Status: Accepted
+- Context:
+  - ADR-018 gave every plate appearance a batter. The other half of the matchup was
+    still anonymous: no play named who threw it, so a box score could not credit a
+    pitcher and the play-by-play read as if nobody were on the mound.
+  - Like batting-order attribution, this has to be pure labeling. If naming the pitcher
+    consumed the RNG or changed an outcome, every seeded game in the repository would
+    move and the determinism guarantee would be gone.
+- Decision:
+  - Model a staff as a five-man rotation plus a bullpen. The starter is chosen by
+    rotation slot derived from the match id, so a given matchup always opens with the
+    same arm and a series turns over like a real rotation, without the simulator
+    needing a schedule it does not have.
+  - Give each pitcher his own outing length from his own season — innings over starts
+    for a rotation arm, innings over appearances for a reliever — rather than one
+    league-wide constant. A horse and a five-and-dive starter are not the same pitcher,
+    and the ingested data already says which is which.
+  - Guard that ratio. A season reports one innings total, not one per role, so for a
+    swingman it is unreadable: Sean Manaea's 128 innings over 15 starts and 14 relief
+    outings computes to an eight-and-a-half-inning starter. Below `MIN_ROLE_SHARE`
+    (70% of appearances in the role) the league shape is used instead of a number the
+    data cannot support — the same choice made everywhere else in this codebase when a
+    measurement is not actually there.
+  - Order the bullpen worst FIP first, which is roughly how a pen is spent: middle
+    relief early, the best arm saved for the end.
+  - When the pen is spent, the last arm finishes the game. A real manager would be out
+    of options too, and a twentieth inning must still be attributed rather than fail.
+  - Read the mound *before* applying the play. The out that ends an outing belongs to
+    the pitcher who recorded it, not to the reliever who has not thrown a pitch yet.
+- Consequences:
+  - Play-by-play names both halves of every matchup, and the viewer shows who the
+    batter is facing. Seeded games are unchanged: a test asserts that supplying a staff
+    leaves the result and every event identical.
+  - The relief model is deliberately naive — a starter leaves on outs recorded, not on
+    runs allowed or on the leverage of the moment. It is explainable and it is honest
+    about what it is; ADR-004 requires the rest be measured rather than hand-tuned.
+  - Attribution is only as good as the roster. A club with fewer than six ingested arms
+    falls back to the synthetic staff rather than fielding a two-man pen.
+- Alternatives considered:
+  - Fixed innings per starter from the ruleset (simpler, but simulates every club's ace
+    and its fifth starter as the same pitcher when the data distinguishes them).
+  - Pulling the starter on runs allowed (closer to a real manager, but adds constants
+    to calibrate that no ingested data supports yet).
+  - Always starting the best arm by FIP (inflates every club's pitching across a
+    simulated season).
+
+---
+
 ## Change Log
+- 2026-09-06: Added ADR-023; every play now names the pitcher who threw it, with the
+  rotation chosen by match id and outing lengths taken from each pitcher's season.
 - 2026-09-06: Added ADR-021 and ADR-022; fielding ingested and mapped onto a
   league-relative range factor, and season reads now collapse to the newest snapshot.
 - 2026-09-06: Added ADR-020; one win-probability model, server-side, with predict

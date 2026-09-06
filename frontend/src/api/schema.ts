@@ -336,6 +336,10 @@ export interface components {
             outs_after: number;
             /** Outs Before */
             outs_before: number;
+            /** Pitcher Id */
+            pitcher_id?: number | null;
+            /** Pitcher Name */
+            pitcher_name?: string | null;
             /** Play Index */
             play_index: number;
             /** Runs Scored On Play */

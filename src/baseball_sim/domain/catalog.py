@@ -13,6 +13,7 @@ from typing import Protocol
 
 from baseball_sim.domain.contracts import (
     LeaderMetric,
+    PitcherWorkload,
     PlayerSeasonLine,
     PlayerSummary,
     StatLeader,
@@ -35,6 +36,16 @@ _LIST_TEAMS = """
     SELECT team_id, name, abbreviation, league_name, division_name
     FROM teams
     ORDER BY name
+"""
+
+# Innings, appearances and starts drive how long a pitcher's outing lasts. Newest
+# snapshot per player, like every other season read (ADR-022).
+_GET_PITCHING_WORKLOAD = """
+    SELECT DISTINCT ON (player_id)
+           player_id, ip, games_played, games_started, fip
+    FROM player_season_stats
+    WHERE season = %s AND stat_group = 'pitching' AND player_id = ANY(%s)
+    ORDER BY player_id, loaded_at_utc DESC
 """
 
 _GET_PLAYER = """
@@ -150,6 +161,10 @@ class CatalogRepository(Protocol):
     def get_league_fielding_lines(
         self, *, season: int
     ) -> dict[int, list[RawFieldingLine]]: ...
+
+    def get_pitching_workload(
+        self, *, player_ids: Sequence[int], season: int
+    ) -> dict[int, PitcherWorkload]: ...
 
     def get_player_season_lines(
         self, *, player_id: int, season: int
@@ -310,6 +325,24 @@ class PostgresCatalogRepository:
             elif group == "pitching":
                 pitching.append(pitching_line_from_row(row))
         return by_team
+
+    def get_pitching_workload(
+        self, *, player_ids: Sequence[int], season: int
+    ) -> dict[int, PitcherWorkload]:
+        if not player_ids:
+            return {}
+        with self._conn.cursor() as cursor:
+            cursor.execute(_GET_PITCHING_WORKLOAD, (season, list(player_ids)))
+            rows = cursor.fetchall()
+        return {
+            int(row[0]): PitcherWorkload(
+                innings=float(row[1]) if row[1] is not None else None,
+                appearances=int(row[2]) if row[2] is not None else None,
+                games_started=int(row[3]) if row[3] is not None else None,
+                fip=float(row[4]) if row[4] is not None else None,
+            )
+            for row in rows
+        }
 
     def get_league_fielding_lines(
         self, *, season: int

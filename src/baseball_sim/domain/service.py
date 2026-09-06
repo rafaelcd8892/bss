@@ -18,7 +18,7 @@ from baseball_sim.domain.stats_provider import (
     METRIC_SPECS,
     StatsProvider,
 )
-from baseball_sim.sim.match_id import create_match_id
+from baseball_sim.sim.match_id import create_match_id, rotation_slot_for
 from baseball_sim.sim.profiles import TeamProfile, synthetic_team_profile
 from baseball_sim.sim.rulesets import DEFAULT_RULESET, SimulationRuleset
 from baseball_sim.sim.state_machine import (
@@ -152,6 +152,8 @@ def _to_play_by_play_event(play: PlayTrace, home_win_probability: float) -> Play
         description=play.description,
         batter_id=play.batter_id,
         batter_name=play.batter_name,
+        pitcher_id=play.pitcher_id,
+        pitcher_name=play.pitcher_name,
         home_win_probability=home_win_probability,
     )
 
@@ -181,9 +183,13 @@ def simulate_game_play_by_play(
     )
     home_lineup = None
     away_lineup = None
+    home_staff = None
+    away_staff = None
     if lineup_provider is not None:
         home_lineup = lineup_provider.lineup(team_id=request.home_team_id, seed=seed)
         away_lineup = lineup_provider.lineup(team_id=request.away_team_id, seed=seed)
+        home_staff = lineup_provider.staff(team_id=request.home_team_id, seed=seed)
+        away_staff = lineup_provider.staff(team_id=request.away_team_id, seed=seed)
     trace = simulate_game_trace(
         seed=seed,
         home_team_id=request.home_team_id,
@@ -195,6 +201,9 @@ def simulate_game_play_by_play(
         away_profile=away_profile,
         home_lineup=home_lineup,
         away_lineup=away_lineup,
+        home_staff=home_staff,
+        away_staff=away_staff,
+        rotation_slot=rotation_slot_for(match_id),
     )
     engine_result = trace.result
     summary = SimulateGameResult(

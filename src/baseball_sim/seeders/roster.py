@@ -84,6 +84,32 @@ def generate_seeded_team_roster(
     )
 
 
+#: Roster indices 1-12 are position players; the staff continues from 13 so a
+#: pitcher's id can never collide with a batter's.
+_STAFF_INDEX_START = 13
+STAFF_SIZE = 12
+
+
+def generate_seeded_staff(*, team_id: int, seed: int) -> list[SeededPlayer]:
+    """A deterministic pitching staff, in rotation-then-bullpen order.
+
+    The seeded roster models a batting order and a defensive alignment, not a staff:
+    it carries exactly one pitcher. Attribution needs a dozen, so they are generated
+    from the same naming scheme with their own index range.
+    """
+
+    return [
+        SeededPlayer(
+            player_id=(team_id * 10_000) + index,
+            full_name=_seeded_name(seed=seed, team_id=team_id, index=index),
+            position="P",
+            bats=_seeded_hand(seed=seed, team_id=team_id, index=index, salt=13),
+            throws=_seeded_hand(seed=seed, team_id=team_id, index=index, salt=31),
+        )
+        for index in range(_STAFF_INDEX_START, _STAFF_INDEX_START + STAFF_SIZE)
+    ]
+
+
 def _seeded_name(*, seed: int, team_id: int, index: int) -> str:
     first = _FIRST_NAMES[
         _mix(seed=seed, team_id=team_id, index=index, salt=101) % len(_FIRST_NAMES)

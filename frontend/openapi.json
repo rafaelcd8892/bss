@@ -277,6 +277,28 @@
             "title": "Outs Before",
             "type": "integer"
           },
+          "pitcher_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pitcher Id"
+          },
+          "pitcher_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pitcher Name"
+          },
           "play_index": {
             "minimum": 1.0,
             "title": "Play Index",

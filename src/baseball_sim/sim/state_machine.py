@@ -5,6 +5,7 @@ from typing import Literal, cast
 
 from baseball_sim.sim.hashing import unit_interval
 from baseball_sim.sim.lineups import Batter, synthetic_lineup
+from baseball_sim.sim.pitching import MoundAssignment, PitchingStaff, synthetic_staff
 from baseball_sim.sim.profiles import TeamProfile, synthetic_team_profile
 from baseball_sim.sim.rulesets import DEFAULT_RULESET, SimulationRuleset
 
@@ -62,6 +63,8 @@ class PlayTrace:
     description: str
     batter_id: int | None = None
     batter_name: str | None = None
+    pitcher_id: int | None = None
+    pitcher_name: str | None = None
 
 
 @dataclass(frozen=True)
@@ -144,6 +147,9 @@ def simulate_game_trace(
     away_profile: TeamProfile | None = None,
     home_lineup: list[Batter] | None = None,
     away_lineup: list[Batter] | None = None,
+    home_staff: PitchingStaff | None = None,
+    away_staff: PitchingStaff | None = None,
+    rotation_slot: int = 0,
 ) -> GameSimulationTrace:
     active_ruleset = ruleset if ruleset is not None else DEFAULT_RULESET
     effective_scheduled_innings = max(1, min(scheduled_innings, active_ruleset.max_innings))
@@ -164,6 +170,16 @@ def simulate_game_trace(
     )
     away_lineup = (
         away_lineup if away_lineup else synthetic_lineup(seed=seed, team_id=away_team_id)
+    )
+    # One assignment per club, carried across half-innings: a starter's outing spans
+    # innings, so the mound cannot be resolved from within a single half.
+    home_mound = MoundAssignment(
+        home_staff if home_staff else synthetic_staff(seed=seed, team_id=home_team_id),
+        rotation_slot=rotation_slot,
+    )
+    away_mound = MoundAssignment(
+        away_staff if away_staff else synthetic_staff(seed=seed, team_id=away_team_id),
+        rotation_slot=rotation_slot,
     )
 
     home_score = 0
@@ -195,6 +211,7 @@ def simulate_game_trace(
             fielding_team_id=home_team_id,
             offense_lineup=away_lineup,
             order_index_start=away_order_index,
+            mound=home_mound,
         )
         play_index += len(top.plays)
         away_order_index = top.ending_order_index
@@ -230,6 +247,7 @@ def simulate_game_trace(
             fielding_team_id=away_team_id,
             offense_lineup=home_lineup,
             order_index_start=home_order_index,
+            mound=away_mound,
         )
         play_index += len(bottom.plays)
         home_order_index = bottom.ending_order_index
@@ -337,6 +355,7 @@ def _simulate_half_inning(
     fielding_team_id: int,
     offense_lineup: list[Batter],
     order_index_start: int,
+    mound: MoundAssignment,
 ) -> HalfInningResult:
     probabilities = _event_probabilities(
         offense_profile=offense_profile,
@@ -363,6 +382,9 @@ def _simulate_half_inning(
         bases_before = _bases_key(state)
         batter = _batter_at(offense_lineup, order_index)
         order_index += 1
+        # Read the mound before the play: the pitcher of record is the one who threw
+        # it, not whoever relieves him on the out it produced.
+        pitcher = mound.current
 
         event = _sample_event(roll=rng.next_unit(), probabilities=probabilities)
         _apply_event(event=event, state=state)
@@ -376,6 +398,7 @@ def _simulate_half_inning(
 
         outs_after = state.outs
         bases_after = _bases_key(state)
+        mound.record_outs(outs_after - outs_before)
 
         plays.append(
             PlayTrace(
@@ -397,6 +420,8 @@ def _simulate_half_inning(
                 ),
                 batter_id=batter.player_id if batter is not None else None,
                 batter_name=batter.name if batter is not None else None,
+                pitcher_id=pitcher.player_id if pitcher is not None else None,
+                pitcher_name=pitcher.name if pitcher is not None else None,
             )
         )
         play_index += 1

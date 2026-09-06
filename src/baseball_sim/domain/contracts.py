@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Literal
 
@@ -89,6 +90,16 @@ class TeamProfileResponse(BaseModel):
     #: Fielding splits behind ``range_factor``. Zero means the factor is the neutral
     #: 0.5 placeholder rather than a measurement.
     fielders_counted: int = Field(default=0, ge=0)
+
+
+@dataclass(frozen=True)
+class PitcherWorkload:
+    """What a pitcher's season says about how he is used, not how good he is."""
+
+    innings: float | None = None
+    appearances: int | None = None
+    games_started: int | None = None
+    fip: float | None = None
 
 
 class PlayerSeasonLine(BaseModel):
@@ -223,6 +234,8 @@ class PlayByPlayEvent(BaseModel):
     description: str
     batter_id: int | None = None
     batter_name: str | None = None
+    pitcher_id: int | None = None
+    pitcher_name: str | None = None
     #: Home win probability after this play, from the shared baseline model. Carried
     #: with the play so a client never has to reimplement the model to draw it.
     home_win_probability: float = Field(..., ge=0.0, le=1.0)

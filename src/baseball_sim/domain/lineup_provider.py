@@ -1,8 +1,8 @@
-"""Lineup providers: resolve a team's batting order for play attribution.
+"""Lineup providers: resolve a team's batting order and staff for play attribution.
 
-Mirrors the stats-provider seam. The catalog-backed provider builds a lineup from the
+Mirrors the stats-provider seam. The catalog-backed provider builds both from the
 persisted roster (real player names), falling back per team to the deterministic
-synthetic lineup when there is not enough data — so attribution always works.
+synthetic ones when there is not enough data — so attribution always works.
 """
 
 from __future__ import annotations
@@ -11,20 +11,34 @@ from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING, Protocol
 
 from baseball_sim.sim.lineups import Batter, synthetic_lineup
+from baseball_sim.sim.pitching import (
+    ROTATION_SIZE,
+    Pitcher,
+    PitchingStaff,
+    appearance_outs,
+    synthetic_staff,
+)
 
 if TYPE_CHECKING:
-    from baseball_sim.domain.contracts import PlayerSummary
+    from baseball_sim.domain.contracts import PitcherWorkload, PlayerSummary
 
 _LINEUP_SIZE = 9
+#: A club needs at least this many arms before its real staff is used at all.
+_MIN_STAFF_SIZE = 6
 
 
 class LineupProvider(Protocol):
     def lineup(self, *, team_id: int, seed: int) -> list[Batter]: ...
 
+    def staff(self, *, team_id: int, seed: int) -> PitchingStaff: ...
+
 
 class SyntheticLineupProvider:
     def lineup(self, *, team_id: int, seed: int) -> list[Batter]:
         return synthetic_lineup(seed=seed, team_id=team_id)
+
+    def staff(self, *, team_id: int, seed: int) -> PitchingStaff:
+        return synthetic_staff(seed=seed, team_id=team_id)
 
 
 def lineup_from_roster(
@@ -64,6 +78,69 @@ def lineup_from_roster(
     return [Batter(player_id=player.player_id, name=player.full_name) for player in ordered[:size]]
 
 
+def staff_from_roster(
+    roster: Sequence[PlayerSummary],
+    *,
+    team_id: int,
+    seed: int,
+    fallback: LineupProvider,
+    workloads: Mapping[int, PitcherWorkload] | None = None,
+) -> PitchingStaff:
+    """Split a club's pitchers into a rotation and a bullpen.
+
+    The rotation is the five arms with the most starts; everyone else relieves. The
+    pen is ordered worst FIP first, which is roughly how a bullpen is spent: middle
+    relief early, the best arm saved for the end.
+
+    Each pitcher's outing length comes from his own season — innings over starts for a
+    rotation arm, innings over appearances for a reliever — so a horse and a
+    five-and-dive starter are not simulated as the same pitcher.
+    """
+
+    arms = [player for player in roster if player.primary_position == "P"]
+    if len(arms) < _MIN_STAFF_SIZE:
+        return fallback.staff(team_id=team_id, seed=seed)
+
+    loads = workloads or {}
+
+    def starts(player: PlayerSummary) -> int:
+        load = loads.get(player.player_id)
+        return load.games_started or 0 if load else 0
+
+    # Most starts first, name for a stable tie-break so the staff is reproducible.
+    ordered = sorted(arms, key=lambda player: (-starts(player), player.full_name))
+    rotation_arms, bullpen_arms = ordered[:ROTATION_SIZE], ordered[ROTATION_SIZE:]
+
+    def worst_fip_first(player: PlayerSummary) -> tuple[float, str]:
+        load = loads.get(player.player_id)
+        # No FIP sorts as league-average rather than as the best or worst arm.
+        return (-(load.fip if load and load.fip is not None else 4.0), player.full_name)
+
+    bullpen_arms.sort(key=worst_fip_first)
+
+    return PitchingStaff(
+        rotation=tuple(_pitcher(player, loads, starter=True) for player in rotation_arms),
+        bullpen=tuple(_pitcher(player, loads, starter=False) for player in bullpen_arms),
+    )
+
+
+def _pitcher(
+    player: PlayerSummary, loads: Mapping[int, PitcherWorkload], *, starter: bool
+) -> Pitcher:
+    load = loads.get(player.player_id)
+    role = (load.games_started if starter else load.appearances) if load else None
+    return Pitcher(
+        player_id=player.player_id,
+        name=player.full_name,
+        expected_outs=appearance_outs(
+            innings=load.innings if load else None,
+            role_appearances=role,
+            total_appearances=load.appearances if load else None,
+            starter=starter,
+        ),
+    )
+
+
 class CatalogLineupProvider:
     """Real batting order from the persisted roster, ordered by season wOBA."""
 
@@ -101,4 +178,24 @@ class CatalogLineupProvider:
             fallback=self._fallback,
             woba=woba,
             size=self._size,
+        )
+
+    def staff(self, *, team_id: int, seed: int) -> PitchingStaff:
+        from baseball_sim.domain.catalog import PostgresCatalogRepository
+
+        repository = PostgresCatalogRepository(dsn=self._dsn)
+        try:
+            roster = repository.get_team_roster(team_id=team_id)
+            workloads = repository.get_pitching_workload(
+                player_ids=[player.player_id for player in roster], season=self._season
+            )
+        finally:
+            repository.close()
+
+        return staff_from_roster(
+            roster,
+            team_id=team_id,
+            seed=seed,
+            fallback=self._fallback,
+            workloads=workloads,
         )
