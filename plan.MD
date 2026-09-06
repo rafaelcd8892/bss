@@ -1,27 +1,35 @@
 # plan.MD
 
 ## Planning Log
-- Last updated: 2026-06-19
+- Last updated: 2026-09-05
 - Owner: Rafael + coding agents
 - Project status: Real sabermetrics feed compare + the simulator (stats-provider seam);
-  Phase 7 web interface underway — live game viewer works with batter attribution.
+  Phase 7.1 live game viewer is feature-complete on synthetic data — club identity,
+  themes, scrubbable timeline, shareable replays, baseline win probability.
 
 ## Resume Here (next session)
 Done 2026-06-19: real sabermetrics seam (ADR-014); CI fix (`master`); play-by-play API;
 catalog endpoints + roster-membership persistence (migration 0003); CORS + static
 serving; React live game viewer (`frontend/`); batter attribution (ADR-015, ADR-016).
+Done 2026-09-05: viewer visual system (ADR-017) — light/dark theme tokens with toggle,
+official club colors with contrast + matchup disambiguation, ballpark field with animated
+bases, out-streak collapsing in the play log, draggable event-coloured scrubber, shareable
+replay URLs, baseline win probability, final box score with standouts, team pickers.
 Suite: 82 tests, ruff + mypy --strict clean; frontend `npm run build` clean.
 
 Open items, recommended order:
-1. Persist `simulation_runs` + `GET /games/{match_id}`; front `/replay/{match_id}` route
-   — closes Phase 7.0 and ships the shareable-replay headline feature. (needs Postgres)
-2. Team/player pickers in the UI backed by the catalog endpoints (replace `teams.ts`
-   hardcoded labels).
+1. Real data in the viewer: run Postgres, apply migrations, ingest an MLB window
+   (`run_sync --include-player-stats`), set `BASEBALL_STATS_SOURCE=postgres`, and confirm
+   real rosters/names and stat-driven team profiles reach the UI.
+2. Persist `simulation_runs` + `GET /games/{match_id}`; front `/replay/{match_id}` route.
+   (URL-based replay already works without a database; this adds history + snapshot ids.)
 3. Dashboard (Phase 7.2): compare + predict views over real sabermetrics, with charts.
 4. Pitcher attribution (simulator models defense at team level only today).
 5. Data depth: ingest fielding (→ `range_factor`) and Statcast xwOBA; ephemeral-PG
    integration test for the Postgres stats/catalog paths.
-Run locally: `uvicorn baseball_sim.main:app --port 8000` + `cd frontend && npm run dev`.
+6. Viewer polish: runner motion along the basepath, mobile layout (<720px) review.
+Run locally: `uvicorn baseball_sim.main:app --port 8000` + `cd frontend && npm run dev`
+(or `preview_start` the `app` and `web` configs in `.claude/launch.json`).
 
 ## North Star
 Create a deterministic, scalable baseball simulator and sabermetrics intelligence platform that supports:

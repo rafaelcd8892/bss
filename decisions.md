@@ -319,9 +319,48 @@ When adding a new decision, use this format:
 - Alternatives considered:
   - Synthetic-only attribution (no real names) or real-only (breaks offline runs).
 
+## ADR-017: Viewer Visual System — Theme Tokens, Club Colors, Baseline Win Probability
+- Date: 2026-09-05
+- Status: Accepted
+- Context:
+  - The live viewer worked but read as a neutral log beside a scoreboard: no club
+    identity, a static wireframe diamond, a play stream dominated by identical OUT rows,
+    and linear-only playback even though the whole game is already client-side and
+    deterministic.
+- Decision:
+  - Theme: semantic design tokens (`--color-surface`, `--color-ink`, `--color-line`…)
+    defined once and redefined under `[data-theme="dark"]` and `prefers-color-scheme`.
+    Components only use token utilities, so no `dark:` variants appear in component code
+    and a theme change is a token edit. An inline script applies the stored/system theme
+    before first paint.
+  - Club colors: official primary/secondary per club, resolved against surface luminance
+    at render time, plus matchup disambiguation that falls back to a club's secondary
+    (then a neutral) when two clubs are perceptually too close — several clubs share a
+    near-identical navy or red, which otherwise made the scoreboard and win-probability
+    bar unreadable.
+  - Timeline: a draggable scrubber over the in-memory play list, ticks weighted and
+    coloured by event. Deterministic replay makes random access free, so the game becomes
+    explorable rather than merely watchable.
+  - Shareable replay: matchup and seed live in the URL and auto-simulate on load, so a
+    replay link needs no server state at all.
+  - Win probability: a documented baseline (simplified RE24 plus league scoring rate,
+    with sigma shrinking as outs run out), labelled "baseline" in the UI.
+- Consequences:
+  - Every matchup stays legible regardless of club color collisions.
+  - Replay links work with no database, ahead of persisted simulation runs.
+  - Win probability is explainable but uncalibrated; it must never be presented as a
+    forecast, and stays labelled as a baseline (ADR-004).
+- Alternatives considered:
+  - `dark:` utility variants throughout (churn in every component, easy to miss cases).
+  - Club primary colors unconditionally (navy-on-navy matchups became unreadable).
+  - Reusing `/predict/game` for win probability: it is seed-hashed team strength and not
+    situational, so it would not move during a game.
+
 ---
 
 ## Change Log
+- 2026-09-05: Added ADR-017; viewer visual system (theme tokens, club colors, scrubber,
+  shareable replay URLs, baseline win probability, box score).
 - 2026-06-19: Added ADR-016; batter attribution via layered lineup providers.
 - 2026-06-19: Added ADR-015; web-interface backend readiness (play-by-play, catalog
   endpoints, roster-membership persistence, CORS) and the React live game viewer.

@@ -1,11 +1,17 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { api, type PlayByPlayResult, type Play } from "../api/client";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { api, type Play, type PlayByPlayResult } from "../api/client";
+import { matchupAccents, teamLabel } from "../teams";
+import { useTeamCatalog } from "../useTeamCatalog";
+import { winProbability } from "../winprob";
+import { readParams, shareUrl, syncUrl, type GameParams } from "../url";
+import { BoxScore } from "./BoxScore";
 import { Diamond } from "./Diamond";
 import { LineScore } from "./LineScore";
 import { PlayLog } from "./PlayLog";
 import { Scoreboard } from "./Scoreboard";
-
-type Form = { homeTeamId: number; awayTeamId: number; seed: number; innings: number };
+import { Scrubber } from "./Scrubber";
+import { TeamPicker } from "./TeamPicker";
+import { WinProbability } from "./WinProbability";
 
 const SPEEDS = [
   { label: "0.5×", ms: 1400 },
@@ -14,23 +20,52 @@ const SPEEDS = [
   { label: "4×", ms: 160 },
 ];
 
-export function GameViewer() {
-  const [form, setForm] = useState<Form>({
-    homeTeamId: 147,
-    awayTeamId: 121,
-    seed: 1234,
-    innings: 9,
-  });
+const BUTTON =
+  "rounded-md border border-line bg-surface px-2 py-1 text-xs text-muted transition-colors hover:text-ink disabled:cursor-not-allowed disabled:opacity-40";
+
+export function GameViewer({ dark }: { dark: boolean }) {
+  const initial = useRef(readParams());
+  const [form, setForm] = useState<GameParams>(initial.current.params);
   const [result, setResult] = useState<PlayByPlayResult | null>(null);
   const [index, setIndex] = useState(-1);
   const [playing, setPlaying] = useState(false);
   const [speedMs, setSpeedMs] = useState(700);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
-  const plays = result?.plays ?? [];
+  const teams = useTeamCatalog();
+  const plays = useMemo(() => result?.plays ?? [], [result]);
   const lastIndex = plays.length - 1;
   const timer = useRef<number | null>(null);
+
+  const simulate = useCallback(async (params: GameParams) => {
+    setLoading(true);
+    setError(null);
+    setPlaying(false);
+    const { data, error: apiError } = await api.POST("/api/v1/simulate/game/play-by-play", {
+      body: {
+        home_team_id: params.homeTeamId,
+        away_team_id: params.awayTeamId,
+        innings: params.innings,
+        context: { seed: params.seed, model_version: "baseline-v1", data_snapshot_id: "ui" },
+      },
+    });
+    setLoading(false);
+    if (apiError || !data) {
+      setError("Simulation request failed. Is the API running on :8000?");
+      return;
+    }
+    setResult(data.result);
+    setIndex(-1);
+    setPlaying(true);
+    syncUrl(params);
+  }, []);
+
+  // A URL that already carries a matchup is a replay link: play it straight away.
+  useEffect(() => {
+    if (initial.current.fromUrl) void simulate(initial.current.params);
+  }, [simulate]);
 
   useEffect(() => {
     if (!playing) return;
@@ -44,55 +79,155 @@ export function GameViewer() {
     };
   }, [playing, index, lastIndex, speedMs]);
 
-  async function simulate() {
-    setLoading(true);
-    setError(null);
+  const step = useCallback(() => {
     setPlaying(false);
-    const { data, error: apiError } = await api.POST("/api/v1/simulate/game/play-by-play", {
-      body: {
-        home_team_id: form.homeTeamId,
-        away_team_id: form.awayTeamId,
-        innings: form.innings,
-        context: { seed: form.seed, model_version: "baseline-v1", data_snapshot_id: "ui" },
-      },
-    });
-    setLoading(false);
-    if (apiError || !data) {
-      setError("Simulation request failed. Is the API running on :8000?");
-      return;
-    }
-    setResult(data.result);
+    setIndex((i) => Math.min(i + 1, lastIndex));
+  }, [lastIndex]);
+
+  const stepBack = useCallback(() => {
+    setPlaying(false);
+    setIndex((i) => Math.max(i - 1, -1));
+  }, []);
+
+  const reset = useCallback(() => {
+    setPlaying(false);
     setIndex(-1);
-    setPlaying(true);
-  }
+  }, []);
+
+  // Keyboard transport controls, skipped while typing in a field.
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null;
+      if (target && ["INPUT", "SELECT", "TEXTAREA"].includes(target.tagName)) return;
+      if (plays.length === 0) return;
+
+      if (event.key === " ") {
+        event.preventDefault();
+        setPlaying((p) => !p);
+      } else if (event.key === "ArrowRight") {
+        event.preventDefault();
+        step();
+      } else if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        stepBack();
+      } else if (event.key.toLowerCase() === "r") {
+        reset();
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [plays.length, step, stepBack, reset]);
 
   const current: Play | null = index >= 0 ? plays[index] ?? null : null;
   const homeScore = current?.home_score_after_play ?? 0;
   const awayScore = current?.away_score_after_play ?? 0;
-  const playsSoFar = index >= 0 ? plays.slice(0, index + 1) : [];
-  const { lineHome, lineAway } = useMemo(() => partialLine(playsSoFar), [playsSoFar.length]);
+  const playsSoFar = useMemo(() => (index >= 0 ? plays.slice(0, index + 1) : []), [plays, index]);
+  const { lineHome, lineAway } = useMemo(() => partialLine(playsSoFar), [playsSoFar]);
+  const wp = useMemo(() => winProbability(current, form.innings), [current, form.innings]);
+  const accents = useMemo(
+    () => matchupAccents(form.homeTeamId, form.awayTeamId, dark),
+    [form.homeTeamId, form.awayTeamId, dark],
+  );
+  const battingAccent = current
+    ? current.batting_team_id === form.homeTeamId
+      ? accents.home
+      : accents.away
+    : accents.away;
+  const finished = plays.length > 0 && index >= lastIndex;
+
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(shareUrl(form));
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch {
+      setError("Could not copy the link. The URL bar already has it.");
+    }
+  }
 
   return (
-    <div className="flex flex-col gap-3.5">
-      <ControlsBar
-        form={form}
-        onChange={setForm}
-        onSimulate={simulate}
-        loading={loading}
-        canPlay={plays.length > 0}
-        playing={playing}
-        onPlayPause={() => setPlaying((p) => !p)}
-        onStep={() => setIndex((i) => Math.min(i + 1, lastIndex))}
-        onReset={() => {
-          setIndex(-1);
-          setPlaying(false);
-        }}
-        speedMs={speedMs}
-        onSpeed={setSpeedMs}
-      />
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-end gap-3 rounded-md border border-line bg-surface px-3.5 py-3">
+        <div className="w-44">
+          <TeamPicker
+            label="away"
+            value={form.awayTeamId}
+            teams={teams}
+            dark={dark}
+            onChange={(awayTeamId) => setForm({ ...form, awayTeamId })}
+          />
+        </div>
+        <div className="w-44">
+          <TeamPicker
+            label="home"
+            value={form.homeTeamId}
+            teams={teams}
+            dark={dark}
+            onChange={(homeTeamId) => setForm({ ...form, homeTeamId })}
+          />
+        </div>
+        <label className="flex flex-col gap-1 text-xs text-muted">
+          seed
+          <div className="flex items-center gap-1">
+            <input
+              type="number"
+              value={form.seed}
+              onChange={(e) => setForm({ ...form, seed: Number(e.target.value) })}
+              className="w-24 rounded-md border border-line bg-surface px-2 py-1.5 text-sm text-ink outline-none"
+            />
+            <button
+              onClick={() => setForm({ ...form, seed: Math.floor(Math.random() * 100000) })}
+              className={BUTTON}
+              title="Random seed"
+            >
+              ⟳
+            </button>
+          </div>
+        </label>
+        <button
+          onClick={() => void simulate(form)}
+          disabled={loading}
+          className="rounded-md bg-ink px-3.5 py-2 text-sm text-app transition-opacity hover:opacity-85 disabled:opacity-50"
+        >
+          {loading ? "simulating…" : "simulate"}
+        </button>
+
+        <div className="ml-auto flex items-center gap-1.5">
+          <button onClick={() => setPlaying((p) => !p)} disabled={!plays.length} className={BUTTON}>
+            {playing ? "pause" : "play"}
+          </button>
+          <button onClick={stepBack} disabled={!plays.length} className={BUTTON} title="Left arrow">
+            ‹
+          </button>
+          <button onClick={step} disabled={!plays.length} className={BUTTON} title="Right arrow">
+            ›
+          </button>
+          <button onClick={reset} disabled={!plays.length} className={BUTTON}>
+            reset
+          </button>
+          {SPEEDS.map((speed) => (
+            <button
+              key={speed.ms}
+              onClick={() => setSpeedMs(speed.ms)}
+              className={`${BUTTON} ${
+                speedMs === speed.ms ? "border-ink bg-ink text-app hover:text-app" : ""
+              }`}
+            >
+              {speed.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {error && (
-        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+        <div
+          className="rounded-md border px-3 py-2 text-sm"
+          style={{
+            borderColor: "var(--color-ev-hr)",
+            background: "var(--color-ev-hr-bg)",
+            color: "var(--color-ev-hr-ink)",
+          }}
+        >
           {error}
         </div>
       )}
@@ -105,23 +240,48 @@ export function GameViewer() {
         inning={current?.inning ?? 1}
         half={current?.half ?? null}
         outs={current?.outs_after ?? 0}
+        homeAccent={accents.home}
+        awayAccent={accents.away}
       />
 
-      <div className="grid grid-cols-[230px_minmax(0,1fr)] gap-2.5">
-        <div className="rounded-md border border-neutral-200 bg-white p-2">
-          <Diamond bases={current?.bases_after ?? "000"} />
-          {current?.batter_name && (
-            <div className="flex items-center gap-1.5 px-1.5 pt-1 text-[13px]">
-              <span className="text-neutral-400">at bat</span>
-              <span className="font-medium">{current.batter_name}</span>
+      {plays.length > 0 && (
+        <WinProbability
+          homeTeamId={form.homeTeamId}
+          awayTeamId={form.awayTeamId}
+          home={wp.home}
+          final={wp.final || finished}
+          homeAccent={accents.home}
+          awayAccent={accents.away}
+        />
+      )}
+
+      <div className="grid grid-cols-[236px_minmax(0,1fr)] gap-2.5 max-[720px]:grid-cols-1">
+        <div className="flex flex-col rounded-md border border-line bg-surface p-2">
+          <Diamond
+            bases={current?.bases_after ?? "000"}
+            accent={battingAccent}
+          />
+          <div className="mt-1 border-t border-line px-1.5 pt-2">
+            <div className="text-[11px] text-faint">at bat</div>
+            <div className="truncate text-[13px] font-medium text-ink">
+              {current?.batter_name ?? "—"}
             </div>
-          )}
-          <div className="px-1.5 pb-1 pt-0.5 text-xs text-neutral-500">
-            {current ? `play ${current.play_index} of ${plays.length}` : "ready"}
+            <div className="mt-1.5 line-clamp-2 text-xs text-muted">
+              {current?.description ?? "Press simulate to start the game."}
+            </div>
           </div>
         </div>
         <PlayLog plays={playsSoFar} />
       </div>
+
+      <Scrubber
+        plays={plays}
+        index={index}
+        onScrub={(next) => {
+          setPlaying(false);
+          setIndex(next);
+        }}
+      />
 
       <LineScore
         homeTeamId={form.homeTeamId}
@@ -130,20 +290,41 @@ export function GameViewer() {
         lineAway={lineAway}
         homeScore={homeScore}
         awayScore={awayScore}
+        currentInning={current?.inning ?? null}
+        homeAccent={accents.home}
+        awayAccent={accents.away}
       />
 
-      {result && index >= lastIndex && (
-        <div className="rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-600">
-          Final · winner {labelFor(result, form)} · deterministic for seed {form.seed}.
-        </div>
+      {finished && result && (
+        <>
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-line bg-raised px-3.5 py-2.5 text-sm">
+            <span className="text-ink">
+              <span className="font-medium">Final</span>
+              <span className="text-muted"> · </span>
+              {teamLabel(result.summary.winner_team_id).name} win
+              <span className="text-muted"> · reproducible from seed {form.seed}</span>
+            </span>
+            <button onClick={() => void copyLink()} className={BUTTON}>
+              {copied ? "link copied" : "copy replay link"}
+            </button>
+          </div>
+          <BoxScore
+            plays={plays}
+            homeTeamId={form.homeTeamId}
+            awayTeamId={form.awayTeamId}
+            homeAccent={accents.home}
+            awayAccent={accents.away}
+          />
+        </>
       )}
+
+      <p className="px-1 text-[11px] text-faint">
+        space play/pause · ← → step · r reset · drag the timeline to scrub
+      </p>
     </div>
   );
 }
 
-function labelFor(result: PlayByPlayResult, form: Form): string {
-  return result.summary.winner_team_id === form.homeTeamId ? "home" : "away";
-}
 
 function partialLine(plays: Play[]): { lineHome: number[]; lineAway: number[] } {
   const lineHome: number[] = [];
@@ -156,83 +337,4 @@ function partialLine(plays: Play[]): { lineHome: number[]; lineAway: number[] } 
     line[i] += play.runs_scored_on_play;
   }
   return { lineHome, lineAway };
-}
-
-const SPEED_BUTTON = "rounded-md border border-neutral-200 px-2 py-1 text-xs hover:bg-neutral-100";
-
-type ControlsProps = {
-  form: Form;
-  onChange: (form: Form) => void;
-  onSimulate: () => void;
-  loading: boolean;
-  canPlay: boolean;
-  playing: boolean;
-  onPlayPause: () => void;
-  onStep: () => void;
-  onReset: () => void;
-  speedMs: number;
-  onSpeed: (ms: number) => void;
-};
-
-function ControlsBar(props: ControlsProps) {
-  const { form, onChange } = props;
-  return (
-    <div className="flex flex-wrap items-end gap-3 rounded-md border border-neutral-200 bg-white px-3.5 py-3">
-      <NumberField
-        label="home"
-        value={form.homeTeamId}
-        onChange={(v) => onChange({ ...form, homeTeamId: v })}
-      />
-      <NumberField
-        label="away"
-        value={form.awayTeamId}
-        onChange={(v) => onChange({ ...form, awayTeamId: v })}
-      />
-      <NumberField label="seed" value={form.seed} onChange={(v) => onChange({ ...form, seed: v })} />
-      <button
-        onClick={props.onSimulate}
-        disabled={props.loading}
-        className="rounded-md bg-neutral-900 px-3.5 py-2 text-sm text-white hover:bg-neutral-700 disabled:opacity-50"
-      >
-        {props.loading ? "simulating…" : "simulate"}
-      </button>
-
-      <div className="ml-auto flex items-center gap-1.5">
-        <button onClick={props.onPlayPause} disabled={!props.canPlay} className={SPEED_BUTTON}>
-          {props.playing ? "pause" : "play"}
-        </button>
-        <button onClick={props.onStep} disabled={!props.canPlay} className={SPEED_BUTTON}>
-          step
-        </button>
-        <button onClick={props.onReset} disabled={!props.canPlay} className={SPEED_BUTTON}>
-          reset
-        </button>
-        {SPEEDS.map((s) => (
-          <button
-            key={s.ms}
-            onClick={() => props.onSpeed(s.ms)}
-            className={`${SPEED_BUTTON} ${props.speedMs === s.ms ? "bg-neutral-900 text-white" : ""}`}
-          >
-            {s.label}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-type NumberFieldProps = { label: string; value: number; onChange: (v: number) => void };
-
-function NumberField({ label, value, onChange }: NumberFieldProps) {
-  return (
-    <label className="flex flex-col gap-1 text-xs text-neutral-500">
-      {label}
-      <input
-        type="number"
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="w-24 rounded-md border border-neutral-200 px-2 py-1.5 text-sm text-neutral-900"
-      />
-    </label>
-  );
 }

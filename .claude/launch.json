@@ -6,6 +6,12 @@
       "runtimeExecutable": ".venv/bin/uvicorn",
       "runtimeArgs": ["baseball_sim.main:app", "--port", "8000"],
       "port": 8000
+    },
+    {
+      "name": "web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "frontend", "run", "dev"],
+      "port": 5173
     }
   ]
 }

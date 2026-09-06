@@ -1,33 +1,64 @@
+import { useEffect, useRef, useState } from "react";
+
 type DiamondProps = {
-  bases: string; // 3 chars: on_first, on_second, on_third (e.g. "101")
+  /** 3 chars: on_first, on_second, on_third (e.g. "101"). */
+  bases: string;
+  /** Batting team accent, used to color occupied bases. */
+  accent: string;
 };
 
-const OCCUPIED = "#1d9e75";
-const EMPTY = "#ffffff";
-const STROKE = "#c9c9c2";
+const HOME = { x: 110, y: 164 };
 
-export function Diamond({ bases }: DiamondProps) {
-  const onFirst = bases[0] === "1";
-  const onSecond = bases[1] === "1";
-  const onThird = bases[2] === "1";
+export function Diamond({ bases, accent }: DiamondProps) {
+  const occupied = [bases[0] === "1", bases[1] === "1", bases[2] === "1"];
+  const previous = useRef(occupied);
+  const [justReached, setJustReached] = useState([false, false, false]);
+
+  useEffect(() => {
+    const reached = occupied.map((on, i) => on && !previous.current[i]);
+    previous.current = occupied;
+    if (reached.some(Boolean)) {
+      setJustReached(reached);
+      const timer = window.setTimeout(() => setJustReached([false, false, false]), 400);
+      return () => window.clearTimeout(timer);
+    }
+    setJustReached([false, false, false]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bases]);
 
   return (
-    <svg viewBox="0 0 230 200" className="w-full" role="img" aria-label="Infield diamond">
-      <polygon points="115,175 180,110 115,45 50,110" fill="none" stroke={STROKE} strokeWidth={1.5} />
-      <circle cx={115} cy={110} r={13} fill="none" stroke="#e3e3de" strokeWidth={1} />
-      <circle cx={115} cy={110} r={2.5} fill="#9a9a90" />
-      <Base x={180} y={110} occupied={onFirst} label="1B" labelX={198} labelY={114} />
-      <Base x={115} y={45} occupied={onSecond} label="2B" labelX={107} labelY={28} />
-      <Base x={50} y={110} occupied={onThird} label="3B" labelX={22} labelY={114} />
-      <rect
-        x={106}
-        y={166}
-        width={18}
-        height={18}
-        rx={3}
-        transform="rotate(45 115 175)"
-        fill="#f0f0ec"
-        stroke={STROKE}
+    <svg viewBox="0 0 220 190" className="mx-auto block w-full max-w-[230px]" role="img" aria-label={`Bases: ${bases}`}>
+      <path
+        d={`M${HOME.x},${HOME.y} L20,74 A 127,127 0 0 1 200,74 Z`}
+        fill="var(--color-grass)"
+      />
+      <polygon points="110,174 172,108 110,46 48,108" fill="var(--color-dirt)" />
+      <polygon points="110,150 148,108 110,66 72,108" fill="var(--color-grass-alt)" />
+      <polygon
+        points="110,160 162,108 110,56 58,108"
+        fill="none"
+        stroke="var(--color-chalk)"
+        strokeWidth={1.5}
+        opacity={0.85}
+      />
+      <path
+        d={`M${HOME.x},${HOME.y} L24,78 M${HOME.x},${HOME.y} L196,78`}
+        stroke="var(--color-chalk)"
+        strokeWidth={1.2}
+        opacity={0.6}
+      />
+      <circle cx={110} cy={108} r={11} fill="var(--color-dirt)" />
+      <rect x={107} y={104} width={6} height={3} rx={1} fill="var(--color-chalk)" opacity={0.8} />
+
+      <Base x={162} y={108} occupied={occupied[0]} pop={justReached[0]} accent={accent} label="1B" />
+      <Base x={110} y={56} occupied={occupied[1]} pop={justReached[1]} accent={accent} label="2B" />
+      <Base x={58} y={108} occupied={occupied[2]} pop={justReached[2]} accent={accent} label="3B" />
+
+      <polygon
+        points="110,158 116,163 113,170 107,170 104,163"
+        fill="var(--color-chalk)"
+        stroke="var(--color-line-strong)"
+        strokeWidth={0.75}
       />
     </svg>
   );
@@ -37,28 +68,27 @@ type BaseProps = {
   x: number;
   y: number;
   occupied: boolean;
+  pop: boolean;
+  accent: string;
   label: string;
-  labelX: number;
-  labelY: number;
 };
 
-function Base({ x, y, occupied, label, labelX, labelY }: BaseProps) {
+function Base({ x, y, occupied, pop, accent, label }: BaseProps) {
   return (
-    <g>
+    <g className={pop ? "bss-pop" : undefined} style={{ transformOrigin: `${x}px ${y}px` }}>
       <rect
-        x={x - 10}
-        y={y - 10}
-        width={20}
-        height={20}
-        rx={3}
+        x={x - 8}
+        y={y - 8}
+        width={16}
+        height={16}
+        rx={2}
         transform={`rotate(45 ${x} ${y})`}
-        fill={occupied ? OCCUPIED : EMPTY}
-        stroke={occupied ? OCCUPIED : STROKE}
+        fill={occupied ? accent : "var(--color-chalk)"}
+        stroke={occupied ? accent : "var(--color-line-strong)"}
         strokeWidth={1.5}
+        style={{ transition: "fill 220ms ease-out, stroke 220ms ease-out" }}
       />
-      <text x={labelX} y={labelY} fontSize={11} fill="#9a9a90" textAnchor="middle">
-        {label}
-      </text>
+      <title>{`${label}${occupied ? " — occupied" : ""}`}</title>
     </g>
   );
 }
