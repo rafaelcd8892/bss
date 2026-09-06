@@ -47,6 +47,17 @@ Production: `npm run build` emits `frontend/dist`, which the API serves automati
 when present (single process hosts both API and UI). The game viewer needs no database
 (it uses the deterministic synthetic provider unless `BASEBALL_STATS_SOURCE=postgres`).
 
+## Tests
+```bash
+pytest -q                      # unit tests; integration tests skip without a database
+cd frontend && npm test        # frontend unit and component tests
+```
+
+Integration tests exercise the real SQL against PostgreSQL. They use a separate
+database resolved from `BASEBALL_TEST_DB_DSN`, or derived from `BASEBALL_DB_DSN` by
+appending `_test`, and create and migrate it on first run. They refuse to run against
+any database whose name does not end in `_test`, because the fixtures truncate tables.
+
 ## Migrations
 Apply pending SQL migrations:
 ```bash

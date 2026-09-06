@@ -233,23 +233,24 @@ every view deep-linkable. Analyze holds player/team analysis; game-scoped analys
 Ordered by dependency and risk. Each step lists what it delivers and how we know it
 is done. Steps are sequential unless marked parallel.
 
-### Step 1 — Integration tests against a real PostgreSQL
+### Step 1 — Integration tests against a real PostgreSQL (DONE 2026-09-06)
 Why first: roughly seven hand-written queries (DISTINCT ON, joins, ANY(%s), the
 latest-snapshot subquery) now serve four endpoints and three screens, and no test
 executes any of them — every test uses a fake repository. The cost of adding this
 grows with each DB feature that follows.
 
-- [ ] Test database fixture: create/reset `baseball_test`, apply migrations 0001-000N.
+- [x] Test database fixture: create/reset `baseball_test`, apply migrations 0001-000N.
       No Docker needed — the local PostgreSQL 18 install is enough; CI uses a service
       container. Tests skip cleanly when no test database is reachable.
-- [ ] Deterministic seed fixture: 2 clubs, ~6 players covering a hitter, a pitcher and
+- [x] Deterministic seed fixture: 3 clubs, ~6 players covering a hitter, a pitcher and
       a two-way player, plus one club with no stats.
-- [ ] Cover the read side: `list_teams`, `get_player`, `get_team_roster`,
+- [x] Cover the read side: `list_teams`, `get_player`, `get_team_roster`,
       `get_batting_woba`, `get_stat_leaders` (both directions + qualifier),
       `get_team_stat_lines`, `get_all_team_stat_lines`, `get_player_season_lines`.
-- [ ] Cover the write side: ingestion upserts, and idempotency when the same snapshot
+- [x] Cover the write side: ingestion upserts, and idempotency when the same snapshot
       is ingested twice.
-- [ ] Verify the tests have teeth by breaking one query on purpose.
+- [x] Verify the tests have teeth by breaking one query on purpose (three mutations,
+      each failing only the tests that cover it).
 
 Done when: the suite runs green locally and in CI, and a deliberately broken query
 fails a test rather than passing silently.

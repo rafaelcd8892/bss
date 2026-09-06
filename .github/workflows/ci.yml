@@ -12,6 +12,20 @@ concurrency:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -33,6 +47,10 @@ jobs:
         run: mypy src
 
       - name: Tests
+        env:
+          # Integration tests create and migrate this database themselves. They skip
+          # when it is unreachable, so the suite still runs without a server.
+          BASEBALL_TEST_DB_DSN: postgresql://postgres:postgres@localhost:5432/baseball_test
         run: pytest -q
 
   frontend:
