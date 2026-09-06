@@ -210,7 +210,9 @@ every view deep-linkable. Analyze holds player/team analysis; game-scoped analys
       old `/?home&away&seed` replay links redirect to `/game` keeping the query).
 - [x] SPA fallback in the FastAPI static mount, excluding the API prefix so a missing
       endpoint still answers a JSON 404 instead of the HTML shell.
-- [ ] Analyze screens: Compare, Leaders, Teams.
+- [x] Analyze screen: Leaders (metric, qualifier and limit all live in the URL).
+- [ ] Analyze screens: Compare, Teams.
+- [ ] Frontend has no automated tests yet — only `tsc --noEmit` plus manual checks.
 - [ ] Explore screens: team and player pages over the catalog endpoints.
 - [ ] Rebuild `/predict/game` on the stats provider before featuring it (today it is
       seed-hashed and not situational, so it must stay out of the dashboard).

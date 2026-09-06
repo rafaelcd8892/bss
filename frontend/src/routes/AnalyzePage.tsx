@@ -1,5 +1,7 @@
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useOutletContext } from "react-router-dom";
+import type { ShellContext } from "../components/AppShell";
 import { Placeholder } from "../components/Placeholder";
+import { LeadersView } from "../features/analyze/LeadersView";
 
 const TABS = [
   { to: "/analyze/compare", label: "Compare" },
@@ -8,6 +10,8 @@ const TABS = [
 ];
 
 export function AnalyzePage() {
+  // Forward the shell context so nested views still receive the theme.
+  const context = useOutletContext<ShellContext>();
   return (
     <div className="flex flex-col gap-3">
       <nav className="flex gap-0.5" aria-label="Analyze views">
@@ -27,7 +31,7 @@ export function AnalyzePage() {
           </NavLink>
         ))}
       </nav>
-      <Outlet />
+      <Outlet context={context} />
     </div>
   );
 }
@@ -45,15 +49,7 @@ export function AnalyzeCompare() {
 }
 
 export function AnalyzeLeaders() {
-  return (
-    <Placeholder
-      ready
-      title="Leaders"
-      description="Top players by an ingested sabermetric, with the playing-time qualifier
-        visible and adjustable. FIP is ranked ascending because lower is better."
-      endpoint="GET /api/v1/stats/leaders"
-    />
-  );
+  return <LeadersView />;
 }
 
 export function AnalyzeTeams() {
