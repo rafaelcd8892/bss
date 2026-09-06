@@ -120,7 +120,7 @@ def _offense_factors(
             _NEUTRAL_RANGE_FACTOR,
         )
 
-    team_line = _aggregate_batting(batting_lines)
+    team_line = aggregate_batting(batting_lines)
     team_woba = compute_woba(team_line, weights)
 
     plate_appearances = max(team_line.plate_appearances, 1)
@@ -144,7 +144,7 @@ def _pitching_factors(
     if not pitching_lines:
         return (_NEUTRAL_RANGE_FACTOR, _NEUTRAL_RANGE_FACTOR)
 
-    team_line = _aggregate_pitching(pitching_lines)
+    team_line = aggregate_pitching(pitching_lines)
     team_fip = compute_fip(team_line, fip_constants)
     k_bb = compute_k_bb_ratio(team_line.strikeouts, team_line.walks)
 
@@ -154,7 +154,9 @@ def _pitching_factors(
     )
 
 
-def _aggregate_batting(lines: Sequence[RawBattingLine]) -> RawBattingLine:
+def aggregate_batting(lines: Sequence[RawBattingLine]) -> RawBattingLine:
+    """Sum batting lines into a single team line."""
+
     return RawBattingLine(
         plate_appearances=sum(line.plate_appearances for line in lines),
         at_bats=sum(line.at_bats for line in lines),
@@ -171,7 +173,9 @@ def _aggregate_batting(lines: Sequence[RawBattingLine]) -> RawBattingLine:
     )
 
 
-def _aggregate_pitching(lines: Sequence[RawPitchingLine]) -> RawPitchingLine:
+def aggregate_pitching(lines: Sequence[RawPitchingLine]) -> RawPitchingLine:
+    """Sum pitching lines into a single team line."""
+
     return RawPitchingLine(
         innings_pitched=round(sum(line.innings_pitched for line in lines), 2),
         strikeouts=sum(line.strikeouts for line in lines),

@@ -140,6 +140,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/teams/{team_id}/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Team Profile Endpoint */
+        get: operations["get_team_profile_endpoint_api_v1_teams__team_id__profile_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/teams/{team_id}/roster": {
         parameters: {
             query?: never;
@@ -411,6 +428,47 @@ export interface components {
         TeamListResponse: {
             /** Teams */
             teams: components["schemas"]["TeamSummary"][];
+        };
+        /**
+         * TeamProfileFactors
+         * @description The seven [0, 1] matchup factors the simulator consumes.
+         */
+        TeamProfileFactors: {
+            /** Command */
+            command: number;
+            /** Discipline */
+            discipline: number;
+            /** Offense */
+            offense: number;
+            /** Power */
+            power: number;
+            /** Prevention */
+            prevention: number;
+            /** Range Factor */
+            range_factor: number;
+            /** Speed */
+            speed: number;
+        };
+        /** TeamProfileResponse */
+        TeamProfileResponse: {
+            /** Batters Counted */
+            batters_counted: number;
+            factors: components["schemas"]["TeamProfileFactors"];
+            /** Pitchers Counted */
+            pitchers_counted: number;
+            /** Season */
+            season: number;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "real" | "synthetic";
+            /** Team Fip */
+            team_fip?: number | null;
+            /** Team Id */
+            team_id: number;
+            /** Team Woba */
+            team_woba?: number | null;
         };
         /** TeamRosterResponse */
         TeamRosterResponse: {
@@ -690,6 +748,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TeamListResponse"];
+                };
+            };
+        };
+    };
+    get_team_profile_endpoint_api_v1_teams__team_id__profile_get: {
+        parameters: {
+            query?: {
+                season?: number | null;
+            };
+            header?: never;
+            path: {
+                team_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeamProfileResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

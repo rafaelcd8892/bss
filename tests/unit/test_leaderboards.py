@@ -7,6 +7,7 @@ from baseball_sim.api.routes import get_catalog_repository
 from baseball_sim.domain.catalog import LEADER_METRICS, leader_qualifier_label
 from baseball_sim.domain.contracts import LeaderMetric, PlayerSummary, StatLeader, TeamSummary
 from baseball_sim.main import app
+from baseball_sim.sim.sabermetrics import RawBattingLine, RawPitchingLine
 
 
 class FakeLeaderCatalog:
@@ -111,3 +112,79 @@ def test_every_metric_has_metadata_and_a_label() -> None:
         assert meta.qualifier_unit in label
     # FIP is the only ERA-scale metric where lower wins.
     assert [m for m, meta in LEADER_METRICS.items() if not meta.descending] == ["fip"]
+
+
+ELITE_LINE = RawBattingLine(
+    plate_appearances=600,
+    at_bats=520,
+    singles=100,
+    doubles=35,
+    triples=3,
+    home_runs=38,
+    walks=70,
+    intentional_walks=8,
+    hit_by_pitch=6,
+    sacrifice_flies=4,
+    strikeouts=110,
+    stolen_bases=18,
+)
+ACE_LINE = RawPitchingLine(
+    innings_pitched=180.0, strikeouts=220, walks=40, hit_by_pitch=5, home_runs=16
+)
+
+
+class FakeProfileCatalog(FakeLeaderCatalog):
+    def __init__(self, *, with_data: bool) -> None:
+        super().__init__()
+        self.with_data = with_data
+
+    def get_team_stat_lines(
+        self, *, team_id: int, season: int
+    ) -> tuple[list[RawBattingLine], list[RawPitchingLine]]:
+        del team_id, season
+        if not self.with_data:
+            return [], []
+        return [ELITE_LINE] * 9, [ACE_LINE] * 5
+
+
+def _client_with(catalog: FakeProfileCatalog) -> TestClient:
+    app.dependency_overrides[get_catalog_repository] = lambda: catalog
+    return TestClient(app)
+
+
+def test_team_profile_from_real_stats() -> None:
+    catalog = FakeProfileCatalog(with_data=True)
+    try:
+        response = _client_with(catalog).get("/api/v1/teams/147/profile")
+    finally:
+        app.dependency_overrides.pop(get_catalog_repository, None)
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["source"] == "real"
+    assert payload["team_id"] == 147
+    assert payload["batters_counted"] == 9
+    assert payload["pitchers_counted"] == 5
+    # The aggregate inputs behind the factors are reported so they can be audited.
+    assert payload["team_woba"] > 0.3
+    assert payload["team_fip"] is not None
+    factors = payload["factors"]
+    assert all(0.0 <= factors[name] <= 1.0 for name in factors)
+    assert factors["offense"] > 0.6
+    # Fielding is not ingested, so range stays neutral.
+    assert factors["range_factor"] == 0.5
+
+
+def test_team_profile_falls_back_to_synthetic_without_data() -> None:
+    catalog = FakeProfileCatalog(with_data=False)
+    try:
+        response = _client_with(catalog).get("/api/v1/teams/147/profile")
+    finally:
+        app.dependency_overrides.pop(get_catalog_repository, None)
+
+    assert response.status_code == 200
+    payload = response.json()
+    # Clearly labelled rather than silently presented as measured.
+    assert payload["source"] == "synthetic"
+    assert payload["batters_counted"] == 0
+    assert payload["team_woba"] is None

@@ -23,6 +23,8 @@ from baseball_sim.domain.contracts import (
     SimulateGameResponse,
     StatLeadersResponse,
     TeamListResponse,
+    TeamProfileFactors,
+    TeamProfileResponse,
     TeamRosterResponse,
 )
 from baseball_sim.domain.provider_factory import get_lineup_provider, get_stats_provider
@@ -32,7 +34,14 @@ from baseball_sim.domain.service import (
     simulate_game,
     simulate_game_play_by_play,
 )
+from baseball_sim.sim.profiles import (
+    aggregate_batting,
+    aggregate_pitching,
+    synthetic_team_profile,
+    team_profile_from_stats,
+)
 from baseball_sim.sim.rulesets import load_ruleset_from_path
+from baseball_sim.sim.sabermetrics import compute_fip, compute_woba
 
 router = APIRouter()
 SettingsDependency = Annotated[Settings, Depends(get_settings)]
@@ -66,6 +75,43 @@ def list_teams_endpoint(catalog: CatalogDependency) -> TeamListResponse:
 @router.get("/teams/{team_id}/roster", response_model=TeamRosterResponse)
 def get_team_roster_endpoint(team_id: int, catalog: CatalogDependency) -> TeamRosterResponse:
     return TeamRosterResponse(team_id=team_id, players=catalog.get_team_roster(team_id=team_id))
+
+
+@router.get("/teams/{team_id}/profile", response_model=TeamProfileResponse)
+def get_team_profile_endpoint(
+    team_id: int,
+    catalog: CatalogDependency,
+    settings: SettingsDependency,
+    season: int | None = None,
+) -> TeamProfileResponse:
+    resolved_season = season if season is not None else settings.stats_season
+    batting, pitching = catalog.get_team_stat_lines(team_id=team_id, season=resolved_season)
+    profile = team_profile_from_stats(batting_lines=batting, pitching_lines=pitching)
+
+    if profile is None:
+        # No ingested stats for this team: report the seed-derived fallback the
+        # simulator would actually use, clearly labelled as synthetic.
+        return TeamProfileResponse(
+            team_id=team_id,
+            season=resolved_season,
+            source="synthetic",
+            factors=TeamProfileFactors(
+                **vars(synthetic_team_profile(seed=settings.default_seed, team_id=team_id))
+            ),
+            batters_counted=0,
+            pitchers_counted=0,
+        )
+
+    return TeamProfileResponse(
+        team_id=team_id,
+        season=resolved_season,
+        source="real",
+        factors=TeamProfileFactors(**vars(profile)),
+        team_woba=round(compute_woba(aggregate_batting(batting)), 4) if batting else None,
+        team_fip=round(compute_fip(aggregate_pitching(pitching)), 3) if pitching else None,
+        batters_counted=len(batting),
+        pitchers_counted=len(pitching),
+    )
 
 
 @router.get("/stats/leaders", response_model=StatLeadersResponse)

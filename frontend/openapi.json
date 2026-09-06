@@ -736,6 +736,130 @@
         "title": "TeamListResponse",
         "type": "object"
       },
+      "TeamProfileFactors": {
+        "description": "The seven [0, 1] matchup factors the simulator consumes.",
+        "properties": {
+          "command": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Command",
+            "type": "number"
+          },
+          "discipline": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Discipline",
+            "type": "number"
+          },
+          "offense": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Offense",
+            "type": "number"
+          },
+          "power": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Power",
+            "type": "number"
+          },
+          "prevention": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Prevention",
+            "type": "number"
+          },
+          "range_factor": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Range Factor",
+            "type": "number"
+          },
+          "speed": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Speed",
+            "type": "number"
+          }
+        },
+        "required": [
+          "offense",
+          "discipline",
+          "power",
+          "speed",
+          "prevention",
+          "command",
+          "range_factor"
+        ],
+        "title": "TeamProfileFactors",
+        "type": "object"
+      },
+      "TeamProfileResponse": {
+        "properties": {
+          "batters_counted": {
+            "minimum": 0.0,
+            "title": "Batters Counted",
+            "type": "integer"
+          },
+          "factors": {
+            "$ref": "#/components/schemas/TeamProfileFactors"
+          },
+          "pitchers_counted": {
+            "minimum": 0.0,
+            "title": "Pitchers Counted",
+            "type": "integer"
+          },
+          "season": {
+            "title": "Season",
+            "type": "integer"
+          },
+          "source": {
+            "enum": [
+              "real",
+              "synthetic"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "team_fip": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team Fip"
+          },
+          "team_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Team Id",
+            "type": "integer"
+          },
+          "team_woba": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team Woba"
+          }
+        },
+        "required": [
+          "team_id",
+          "season",
+          "source",
+          "factors",
+          "batters_counted",
+          "pitchers_counted"
+        ],
+        "title": "TeamProfileResponse",
+        "type": "object"
+      },
       "TeamRosterResponse": {
         "properties": {
           "players": {
@@ -1181,6 +1305,61 @@
           }
         },
         "summary": "List Teams Endpoint"
+      }
+    },
+    "/api/v1/teams/{team_id}/profile": {
+      "get": {
+        "operationId": "get_team_profile_endpoint_api_v1_teams__team_id__profile_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "team_id",
+            "required": true,
+            "schema": {
+              "title": "Team Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "season",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Season"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamProfileResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Team Profile Endpoint"
       }
     },
     "/api/v1/teams/{team_id}/roster": {

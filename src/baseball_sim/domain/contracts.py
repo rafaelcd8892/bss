@@ -58,6 +58,36 @@ class TeamRosterResponse(BaseModel):
     players: list[PlayerSummary]
 
 
+#: Whether a reported value was computed from ingested data or is a seeded
+#: placeholder. Exposed per metric so a client can visibly distinguish the two.
+MetricSource = Literal["real", "synthetic"]
+
+
+class TeamProfileFactors(BaseModel):
+    """The seven [0, 1] matchup factors the simulator consumes."""
+
+    offense: float = Field(..., ge=0.0, le=1.0)
+    discipline: float = Field(..., ge=0.0, le=1.0)
+    power: float = Field(..., ge=0.0, le=1.0)
+    speed: float = Field(..., ge=0.0, le=1.0)
+    prevention: float = Field(..., ge=0.0, le=1.0)
+    command: float = Field(..., ge=0.0, le=1.0)
+    range_factor: float = Field(..., ge=0.0, le=1.0)
+
+
+class TeamProfileResponse(BaseModel):
+    team_id: PositiveInt
+    season: int
+    #: "real" when built from ingested stats, "synthetic" when seed-derived.
+    source: MetricSource
+    factors: TeamProfileFactors
+    #: Aggregate inputs behind the factors, so the numbers can be audited.
+    team_woba: float | None = None
+    team_fip: float | None = None
+    batters_counted: int = Field(..., ge=0)
+    pitchers_counted: int = Field(..., ge=0)
+
+
 LeaderMetric = Literal["woba", "wrc_plus", "fip", "k_bb_ratio"]
 
 
@@ -84,11 +114,6 @@ class ComparePlayersRequest(BaseModel):
     left_player_id: PositiveInt
     right_player_id: PositiveInt
     context: DeterministicContext
-
-
-#: Whether a reported value was computed from ingested data or is a seeded
-#: placeholder. Exposed per metric so a client can visibly distinguish the two.
-MetricSource = Literal["real", "synthetic"]
 
 
 class MetricComparison(BaseModel):

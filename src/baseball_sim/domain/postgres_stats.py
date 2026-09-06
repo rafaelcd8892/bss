@@ -18,6 +18,12 @@ from baseball_sim.domain.stats_provider import (
 )
 from baseball_sim.sim.sabermetrics import RawBattingLine, RawPitchingLine
 
+#: Column order every season-stats row parser below expects.
+SEASON_STATS_COLUMNS = """player_id, team_id, stat_group,
+           ip, at_bats, singles, doubles, triples, home_runs,
+           walks, intentional_walks, hit_by_pitch, sacrifice_flies,
+           strikeouts, stolen_bases, pa"""
+
 _SELECT_SEASON_STATS = """
     SELECT player_id, team_id, stat_group,
            ip, at_bats, singles, doubles, triples, home_runs,
@@ -61,12 +67,12 @@ def build_stat_line_provider_from_rows(
         stat_group = str(row[2])
 
         if stat_group == "hitting":
-            line = _batting_line_from_row(row)
+            line = batting_line_from_row(row)
             batting_lines[player_id] = line
             if team_id is not None:
                 team_batting.setdefault(team_id, []).append(line)
         elif stat_group == "pitching":
-            pitching = _pitching_line_from_row(row)
+            pitching = pitching_line_from_row(row)
             pitching_lines[player_id] = pitching
             if team_id is not None:
                 team_pitching.setdefault(team_id, []).append(pitching)
@@ -84,7 +90,9 @@ def _int(value: Any) -> int:
     return int(value) if value is not None else 0
 
 
-def _batting_line_from_row(row: tuple[Any, ...]) -> RawBattingLine:
+def batting_line_from_row(row: tuple[Any, ...]) -> RawBattingLine:
+    """Parse a SEASON_STATS_COLUMNS row into a batting line."""
+
     return RawBattingLine(
         plate_appearances=_int(row[15]),
         at_bats=_int(row[4]),
@@ -101,7 +109,9 @@ def _batting_line_from_row(row: tuple[Any, ...]) -> RawBattingLine:
     )
 
 
-def _pitching_line_from_row(row: tuple[Any, ...]) -> RawPitchingLine:
+def pitching_line_from_row(row: tuple[Any, ...]) -> RawPitchingLine:
+    """Parse a SEASON_STATS_COLUMNS row into a pitching line."""
+
     return RawPitchingLine(
         innings_pitched=float(row[3]) if row[3] is not None else 0.0,
         strikeouts=_int(row[13]),

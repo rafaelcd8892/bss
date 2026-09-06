@@ -12,6 +12,12 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from baseball_sim.domain.contracts import LeaderMetric, PlayerSummary, StatLeader, TeamSummary
+from baseball_sim.domain.postgres_stats import (
+    SEASON_STATS_COLUMNS,
+    batting_line_from_row,
+    pitching_line_from_row,
+)
+from baseball_sim.sim.sabermetrics import RawBattingLine, RawPitchingLine
 
 _LIST_TEAMS = """
     SELECT team_id, name, abbreviation, league_name, division_name
@@ -105,6 +111,10 @@ class CatalogRepository(Protocol):
     def get_stat_leaders(
         self, *, metric: LeaderMetric, season: int, minimum: float, limit: int
     ) -> list[StatLeader]: ...
+
+    def get_team_stat_lines(
+        self, *, team_id: int, season: int
+    ) -> tuple[list[RawBattingLine], list[RawPitchingLine]]: ...
 
 
 class PostgresCatalogRepository:
@@ -210,3 +220,22 @@ class PostgresCatalogRepository:
             )
             for index, row in enumerate(rows, start=1)
         ]
+
+    def get_team_stat_lines(
+        self, *, team_id: int, season: int
+    ) -> tuple[list[RawBattingLine], list[RawPitchingLine]]:
+        """Newest hitting and pitching line per player for one team's season."""
+
+        query = f"""
+            SELECT DISTINCT ON (player_id, stat_group) {SEASON_STATS_COLUMNS}
+            FROM player_season_stats
+            WHERE season = %s AND team_id = %s
+            ORDER BY player_id, stat_group, loaded_at_utc DESC
+        """
+        with self._conn.cursor() as cursor:
+            cursor.execute(query, (season, team_id))
+            rows = cursor.fetchall()
+
+        batting = [batting_line_from_row(row) for row in rows if str(row[2]) == "hitting"]
+        pitching = [pitching_line_from_row(row) for row in rows if str(row[2]) == "pitching"]
+        return batting, pitching

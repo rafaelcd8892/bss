@@ -200,7 +200,17 @@ Stack decision:
 - [ ] Pitcher attribution (simulator models defense at team level only today).
 
 ### Phase 7.2 — Analytics dashboard
-- [ ] Player/team compare UI over real sabermetrics; prediction probabilities; charts.
+Navigation skeleton decided: three sections (Game / Analyze / Explore) with react-router,
+every view deep-linkable. Analyze holds player/team analysis; game-scoped analysis
+(box score, win probability) stays inside the viewer.
+- [x] Per-metric provenance in `/compare/players` (ADR-019).
+- [x] `GET /stats/leaders` with qualifier + direction metadata.
+- [x] `GET /teams/{id}/profile` with the factors and their aggregate inputs.
+- [ ] Introduce react-router and the Game / Analyze / Explore shell.
+- [ ] Analyze screens: Compare, Leaders, Teams.
+- [ ] Explore screens: team and player pages over the catalog endpoints.
+- [ ] Rebuild `/predict/game` on the stats provider before featuring it (today it is
+      seed-hashed and not situational, so it must stay out of the dashboard).
 
 ## Risks and Mitigations
 - External API schema changes:

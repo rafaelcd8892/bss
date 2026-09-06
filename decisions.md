@@ -384,9 +384,42 @@ When adding a new decision, use this format:
   - A fuller lineup-construction model (speed at the top, power in the middle) — worth
     revisiting, but ADR-004 favours the explainable baseline first.
 
+## ADR-019: Analyze Data Foundations Before Dashboard Screens
+- Date: 2026-09-05
+- Status: Accepted
+- Context:
+  - The web interface grows into three sections (Game / Analyze / Explore). Before
+    drawing dashboard screens, the serving API had gaps that would have forced the UI
+    to either invent data or present seeded placeholders as measurements.
+- Decision:
+  - Report provenance per metric (`MetricSource`), not only in a summary string, so a
+    client can visibly separate ingested values from seeded ones.
+  - Add `GET /stats/leaders` with an explicit playing-time qualifier and a `direction`
+    field, so clients never hardcode which way a metric points (FIP is lower-better).
+  - Add `GET /teams/{id}/profile` returning the simulator's seven factors plus the
+    aggregate inputs behind them (team wOBA/FIP, players counted) and a `source` label,
+    so a team rating can be audited rather than taken on faith.
+  - Keep leaderboard metric names mapped through a fixed table to SQL identifiers;
+    request input is never interpolated into a query.
+  - Do **not** surface `POST /predict/game` in the dashboard yet: it is still a hash of
+    the seed and is not situational, so featuring it would present invented numbers as
+    analysis. It needs rebuilding on the stats provider first.
+- Consequences:
+  - The dashboard can be built without a single fabricated number, and every displayed
+    value can state where it came from.
+  - `xwoba` is reported as synthetic everywhere until Statcast is ingested, which keeps
+    that gap visible instead of hidden.
+- Alternatives considered:
+  - Building screens first and retrofitting provenance (the UI would have shipped with
+    seeded values presented as real).
+  - Computing leaderboards client-side from a bulk stats dump (heavy, and it moves
+    qualification rules out of one auditable place).
+
 ---
 
 ## Change Log
+- 2026-09-05: Added ADR-019; Analyze data foundations (per-metric provenance,
+  leaderboards, team profile endpoint) landed before dashboard screens.
 - 2026-09-05: Added ADR-018; batting order now derives from season wOBA.
 - 2026-09-05: Added ADR-017; viewer visual system (theme tokens, club colors, scrubber,
   shareable replay URLs, baseline win probability, box score).
