@@ -60,6 +60,44 @@ Pure functions, no I/O, fixed league weights (FanGraphs 2023 baseline):
 Weights live in `WobaWeights` / `FipConstants` dataclasses so they can be versioned
 per season without touching call sites.
 
+### Widened metrics
+
+The MLB Stats API returns 34 hitting and 62 pitching fields per player. The first
+ingest parsed 12 and 5; the rest were arriving in responses we already paid for and
+were being discarded. Parsing them added these, at no extra request cost:
+
+| metric | formula |
+| --- | --- |
+| AVG | `H / AB` |
+| OBP | `(H + BB + HBP) / (AB + BB + HBP + SF)` |
+| SLG | `TB / AB` |
+| OPS | `OBP + SLG` |
+| ISO | `SLG - AVG` |
+| BABIP | `(H - HR) / (AB - K - HR + SF)` |
+| ERA | `ER x 9 / IP` |
+| WHIP | `(BB + H) / IP` |
+| K% / BB% | `K / BF`, `BB / BF` — rates against batters faced, not innings |
+| GB% | `GO / (GO + AO)` — an approximation: the API gives ground and air *outs*, not every batted ball |
+
+Every one returns `None` rather than zero when its inputs were not ingested, so a
+missing measurement never masquerades as a real value of nought.
+
+## Ingestion scope and aggregation trust
+
+Two separate concerns that are easy to conflate:
+
+**Scope** — which groups to request. Asking for both hitting and pitching for all ~840
+players doubles the request count and stores lines nobody wants. `stat_groups_for`
+picks by roster position: hitting for position players, pitching for pitchers, both for
+a declared two-way player, and both when the position is unknown. `--all-stat-groups`
+overrides it.
+
+**Trust** — which lines to count. This is where the correctness win is. Roster
+positions can be stale, so scope filtering alone cannot be relied on: a pitcher's four
+plate appearances would still be summed into the club's team wOBA. `team_profile_from_stats`
+therefore applies its own floor (`MIN_TEAM_BATTING_PA`, `MIN_TEAM_PITCHING_IP`) before
+aggregating, which does not depend on the position data being right.
+
 ## Team profile from real stats (`sim/profiles.py`)
 
 Aggregated team batting/pitching lines map into the simulator's seven factors via

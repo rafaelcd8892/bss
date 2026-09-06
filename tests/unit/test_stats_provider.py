@@ -197,3 +197,45 @@ def test_synthetic_rating_marks_every_metric_synthetic() -> None:
     rating = SyntheticStatsProvider().player_rating(player_id=592450, seed=1234)
     assert set(rating.sources.values()) == {"synthetic"}
     assert rating.source == "synthetic"
+
+
+SCRUB_BAT = RawBattingLine(
+    plate_appearances=8, at_bats=7, singles=0, doubles=0, triples=0, home_runs=0,
+    walks=1, intentional_walks=0, hit_by_pitch=0, sacrifice_flies=0,
+    strikeouts=6, stolen_bases=0,
+)
+MOP_UP_ARM = RawPitchingLine(
+    innings_pitched=1.0, strikeouts=0, walks=3, hit_by_pitch=1, home_runs=2
+)
+
+
+def test_token_playing_time_does_not_drag_the_team_profile() -> None:
+    """A pitcher's few plate appearances must not move the club's offense.
+
+    Filtering the ingest by position helps, but roster positions can be stale, so the
+    aggregation applies its own floor.
+    """
+    clean = StatLineStatsProvider(
+        batting_lines={}, pitching_lines={},
+        team_batting={147: [ELITE_BAT] * 9},
+        team_pitching={147: [ACE_ARM] * 5},
+    ).team_profile(team_id=147, seed=1)
+
+    polluted = StatLineStatsProvider(
+        batting_lines={}, pitching_lines={},
+        team_batting={147: [ELITE_BAT] * 9 + [SCRUB_BAT] * 5},
+        team_pitching={147: [ACE_ARM] * 5 + [MOP_UP_ARM] * 3},
+    ).team_profile(team_id=147, seed=1)
+
+    assert polluted == clean
+
+
+def test_a_club_of_only_token_lines_falls_back_to_neutral_factors() -> None:
+    # Everything is below the floor, so there is nothing to aggregate.
+    profile = StatLineStatsProvider(
+        batting_lines={}, pitching_lines={},
+        team_batting={147: [SCRUB_BAT]},
+        team_pitching={147: [MOP_UP_ARM]},
+    ).team_profile(team_id=147, seed=1)
+    assert profile.offense == 0.5
+    assert profile.prevention == 0.5

@@ -34,45 +34,73 @@ A skill score near zero is not the same failure it would be in a lower-variance 
 games being scored happened inside that same season. The model already "knows" how the
 season turned out. This is not a backtest, and the number flatters the model.
 
-**The sample is tiny.** The current window holds 59 finished, decided games. The
-standard error on the observed home-win rate is about 6.5 points, so the interval spans
-roughly 0.33 to 0.58 — wide enough to contain both the model's forecast and the true
-league home-field advantage of about 0.54.
+**Sample size dominates.** The first window held 59 finished games, putting a 6.5 point
+standard error on the observed rate — wide enough to contain almost any hypothesis. The
+current window holds 857, which brings that down to about 1.7 points. See "Why the
+first run was left alone" below for what that difference actually changed.
 
-## Result — season 2026, run 2026-09-06
+## Results
+
+### Run 2 — season 2026, 857 games (2026-09-06)
+
+After widening the ingestion window from five days to about ten weeks.
+
+| | |
+| --- | --- |
+| sample | 857 finished, decided games |
+| Brier score | 0.2468 |
+| skill vs uniform | **+0.0129** |
+| mean predicted home win | 0.5203 |
+| observed home win rate | 0.5239 (95% interval 0.490 – 0.557) |
+| calibration error | **−0.0037** |
+| conclusive | no |
+
+The model is now essentially calibrated in the large: it forecasts home teams to win
+52.03% of the time and they won 52.39%, a gap of four tenths of a point. Skill is
+mildly positive, which is where an MLB pregame model belongs — the sport's variance
+caps the achievable range at a few points.
+
+`conclusive` is still false, and correctly so. Even 857 games cannot *prove* the model
+right; they only fail to contradict it.
+
+### Run 1 — season 2026, 59 games (2026-09-06)
+
+The first window held only five days of games.
 
 | | |
 | --- | --- |
 | sample | 59 finished, decided games |
 | Brier score | 0.2520 |
-| skill vs uniform | **−0.0079** |
+| skill vs uniform | −0.0079 |
 | mean predicted home win | 0.5197 |
 | observed home win rate | 0.4576 (95% interval 0.330 – 0.585) |
 | calibration error | +0.0621 |
-| conclusive | **no** |
+| conclusive | no |
 
-Every forecast landed in a single reliability bin (0.4–0.6): on real clubs the model's
-spread is narrow, so there is no reliability curve to read yet.
+### Why the first run was left alone
 
-### What this does and does not tell us
+Run 1 showed the model over-predicting home wins by 6.2 points and scoring slightly
+*worse* than a coin flip. The obvious response was to lower the home-field constant
+until the gap closed.
 
-It says the model shows **no demonstrated skill on this sample** and leans slightly
-toward the home side relative to what happened. It does **not** say the model is
-mis-tuned: 59 games cannot distinguish a 0.52 forecast from a 0.46 outcome, and the
-window happened to be one where home teams lost more often than the league norm.
+Run 2 shows that would have been a mistake. The true home-win rate over the wider
+window is 52.4%, and the model already said 52.0%. The entire 6.2-point "error" was
+sampling noise in 59 games, exactly as the reported standard error of 6.5 points
+warned. Tuning the constant to fit it would have pushed a well-calibrated model away
+from reality and replaced a documented assumption with a fitted number justified by
+nothing but noise.
 
-The right response is therefore *not* to adjust the home-field constant. Tuning a
-constant to fit 59 games of noise would make the model worse and less explainable, and
-would replace a documented assumption with a fitted one that nobody can justify.
+This is the concrete case for reporting sampling error alongside a score, and for
+treating `conclusive: false` as a reason not to act.
 
 ## What a real evaluation needs
 
 1. **Game-level history**, so profiles can be rebuilt from stats as they stood *before*
    each game rather than from end-of-season aggregates.
-2. **A much larger sample** — a full season is roughly 2,430 games, which brings the
-   standard error on the observed rate down to about 1 point.
-3. **A wider ingestion window**, since the current five-day window is not representative
-   of a season.
+2. **A larger sample still** — a full season is roughly 2,430 games, which would bring
+   the standard error down to about 1 point from the current 1.7.
+3. **Games spread across the season**, since even ten weeks is not a full year of
+   conditions.
 
 Until those exist, this report is a sanity check on the model's shape, not a measure of
 forecasting skill.

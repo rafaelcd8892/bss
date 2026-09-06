@@ -146,7 +146,10 @@ class MLBStatsClient:
         roster_type: str = "active",
     ) -> list[dict[str, Any]]:
         payload = await self._get_json(
-            f"/teams/{team_id}/roster", params={"rosterType": roster_type}
+            f"/teams/{team_id}/roster",
+            # Handedness lives on the person, not the roster entry, and only arrives
+            # when hydrated. Without this both columns are silently always NULL.
+            params={"rosterType": roster_type, "hydrate": "person"},
         )
         roster = payload.get("roster", [])
         if not isinstance(roster, list):

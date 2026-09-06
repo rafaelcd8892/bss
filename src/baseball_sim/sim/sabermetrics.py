@@ -62,10 +62,28 @@ class RawBattingLine:
     sacrifice_flies: int
     strikeouts: int
     stolen_bases: int
+    # Added once the ingest widened. Defaults keep older construction working, and a
+    # zero here means "not ingested" for every metric that needs the field.
+    runs: int = 0
+    runs_batted_in: int = 0
+    caught_stealing: int = 0
+    sacrifice_bunts: int = 0
+    ground_into_double_play: int = 0
+    ground_outs: int = 0
+    air_outs: int = 0
+    games_played: int = 0
 
     @property
     def hits(self) -> int:
         return self.singles + self.doubles + self.triples + self.home_runs
+
+    @property
+    def total_bases(self) -> int:
+        return self.singles + 2 * self.doubles + 3 * self.triples + 4 * self.home_runs
+
+    @property
+    def on_base_denominator(self) -> int:
+        return self.at_bats + self.walks + self.hit_by_pitch + self.sacrifice_flies
 
     @property
     def woba_denominator(self) -> int:
@@ -87,6 +105,14 @@ class RawPitchingLine:
     walks: int
     hit_by_pitch: int
     home_runs: int
+    # Added once the ingest widened; see RawBattingLine for the defaulting rationale.
+    batters_faced: int = 0
+    earned_runs: int = 0
+    hits_allowed: int = 0
+    ground_outs: int = 0
+    air_outs: int = 0
+    games_played: int = 0
+    games_started: int = 0
 
 
 def compute_woba(line: RawBattingLine, weights: WobaWeights = DEFAULT_WOBA_WEIGHTS) -> float:
@@ -135,3 +161,87 @@ def compute_k_bb_ratio(strikeouts: int, walks: int) -> float:
     """Strikeout-to-walk ratio. Walks of 0 are treated as 1 to avoid divide-by-zero."""
 
     return strikeouts / max(walks, 1)
+
+
+def _rate(numerator: float, denominator: float) -> float | None:
+    """A rate, or None when the denominator gives it no meaning."""
+
+    return numerator / denominator if denominator > 0 else None
+
+
+def compute_batting_average(line: RawBattingLine) -> float | None:
+    return _rate(line.hits, line.at_bats)
+
+
+def compute_obp(line: RawBattingLine) -> float | None:
+    """On-base percentage: (H + BB + HBP) / (AB + BB + HBP + SF)."""
+
+    reached = line.hits + line.walks + line.hit_by_pitch
+    return _rate(reached, line.on_base_denominator)
+
+
+def compute_slg(line: RawBattingLine) -> float | None:
+    """Slugging: total bases per at-bat."""
+
+    return _rate(line.total_bases, line.at_bats)
+
+
+def compute_ops(line: RawBattingLine) -> float | None:
+    obp = compute_obp(line)
+    slg = compute_slg(line)
+    return None if obp is None or slg is None else obp + slg
+
+
+def compute_iso(line: RawBattingLine) -> float | None:
+    """Isolated power: extra bases per at-bat, i.e. slugging minus average."""
+
+    slg = compute_slg(line)
+    average = compute_batting_average(line)
+    return None if slg is None or average is None else slg - average
+
+
+def compute_babip(line: RawBattingLine) -> float | None:
+    """Batting average on balls in play.
+
+    Removes the outcomes the defense never touches — strikeouts and home runs — so
+    the denominator is only balls that were actually fielded.
+    """
+
+    balls_in_play = (
+        line.at_bats - line.strikeouts - line.home_runs + line.sacrifice_flies
+    )
+    return _rate(line.hits - line.home_runs, balls_in_play)
+
+
+def compute_era(line: RawPitchingLine) -> float | None:
+    return _rate(line.earned_runs * 9.0, line.innings_pitched)
+
+
+def compute_whip(line: RawPitchingLine) -> float | None:
+    """Walks and hits per inning pitched."""
+
+    return _rate(line.walks + line.hits_allowed, line.innings_pitched)
+
+
+def compute_per_nine(count: int, innings_pitched: float) -> float | None:
+    return _rate(count * 9.0, innings_pitched)
+
+
+def compute_strikeout_rate(line: RawPitchingLine) -> float | None:
+    """Strikeouts per batter faced — a better rate stat than K/BB or K/9."""
+
+    return _rate(line.strikeouts, line.batters_faced)
+
+
+def compute_walk_rate(line: RawPitchingLine) -> float | None:
+    return _rate(line.walks, line.batters_faced)
+
+
+def compute_ground_ball_rate(line: RawPitchingLine) -> float | None:
+    """Share of batted-ball outs that stayed on the ground.
+
+    An approximation: the API exposes ground and air *outs*, not every batted ball,
+    so this is not the true GB% a batted-ball feed would give.
+    """
+
+    return _rate(line.ground_outs, line.ground_outs + line.air_outs)

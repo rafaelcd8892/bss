@@ -205,43 +205,7 @@ class PostgresIngestRepository:
     ) -> int:
         with self._conn.cursor() as cursor:
             cursor.executemany(
-                """
-                INSERT INTO player_season_stats (
-                    player_id, season, team_id, stat_group,
-                    pa, ip, woba, xwoba, wrc_plus, fip, k_bb_ratio,
-                    at_bats, singles, doubles, triples, home_runs,
-                    walks, intentional_walks, hit_by_pitch, sacrifice_flies,
-                    strikeouts, stolen_bases, source_snapshot_id
-                )
-                VALUES (
-                    %s, %s, %s, %s,
-                    %s, %s, %s, %s, %s, %s, %s,
-                    %s, %s, %s, %s, %s,
-                    %s, %s, %s, %s,
-                    %s, %s, %s
-                )
-                ON CONFLICT (player_id, season, source_snapshot_id, stat_group) DO UPDATE
-                SET team_id = EXCLUDED.team_id,
-                    pa = EXCLUDED.pa,
-                    ip = EXCLUDED.ip,
-                    woba = EXCLUDED.woba,
-                    xwoba = EXCLUDED.xwoba,
-                    wrc_plus = EXCLUDED.wrc_plus,
-                    fip = EXCLUDED.fip,
-                    k_bb_ratio = EXCLUDED.k_bb_ratio,
-                    at_bats = EXCLUDED.at_bats,
-                    singles = EXCLUDED.singles,
-                    doubles = EXCLUDED.doubles,
-                    triples = EXCLUDED.triples,
-                    home_runs = EXCLUDED.home_runs,
-                    walks = EXCLUDED.walks,
-                    intentional_walks = EXCLUDED.intentional_walks,
-                    hit_by_pitch = EXCLUDED.hit_by_pitch,
-                    sacrifice_flies = EXCLUDED.sacrifice_flies,
-                    strikeouts = EXCLUDED.strikeouts,
-                    stolen_bases = EXCLUDED.stolen_bases,
-                    loaded_at_utc = NOW()
-                """,
+                _PLAYER_SEASON_STATS_SQL,
                 [_player_season_stats_row(record, snapshot_id) for record in records],
             )
         return len(records)
@@ -285,43 +249,82 @@ class PostgresIngestRepository:
         self._conn.rollback()
 
 
+#: Column order for the player_season_stats upsert. Kept as data so the statement and
+#: the row tuple can never drift apart — with 40-odd columns, hand-written placeholders
+#: are a bug waiting to happen.
+_PLAYER_SEASON_STATS_COLUMNS = (
+    "player_id", "season", "team_id", "stat_group",
+    "pa", "ip", "woba", "xwoba", "wrc_plus", "fip", "k_bb_ratio",
+    "at_bats", "singles", "doubles", "triples", "home_runs",
+    "walks", "intentional_walks", "hit_by_pitch", "sacrifice_flies",
+    "strikeouts", "stolen_bases",
+    "runs", "runs_batted_in", "caught_stealing", "sacrifice_bunts",
+    "ground_into_double_play", "ground_outs", "air_outs", "games_played",
+    "batters_faced", "earned_runs", "hits_allowed", "games_started",
+    "batting_average", "obp", "slg", "ops", "iso", "babip",
+    "era", "whip", "strikeout_rate", "walk_rate", "ground_ball_rate",
+    "source_snapshot_id",
+)
+
+#: Everything except the composite key is refreshed on conflict.
+_PLAYER_SEASON_STATS_KEY = ("player_id", "season", "source_snapshot_id", "stat_group")
+
+_PLAYER_SEASON_STATS_SQL = """
+    INSERT INTO player_season_stats ({columns})
+    VALUES ({placeholders})
+    ON CONFLICT ({key}) DO UPDATE
+    SET {updates},
+        loaded_at_utc = NOW()
+""".format(
+    columns=", ".join(_PLAYER_SEASON_STATS_COLUMNS),
+    placeholders=", ".join(["%s"] * len(_PLAYER_SEASON_STATS_COLUMNS)),
+    key=", ".join(_PLAYER_SEASON_STATS_KEY),
+    updates=",\n        ".join(
+        f"{column} = EXCLUDED.{column}"
+        for column in _PLAYER_SEASON_STATS_COLUMNS
+        if column not in _PLAYER_SEASON_STATS_KEY
+    ),
+)
+
+
 def _player_season_stats_row(
     record: PlayerSeasonStatRecord, snapshot_id: str
 ) -> tuple[object, ...]:
     batting = record.batting
     pitching = record.pitching
-    # Home runs, walks, HBP and strikeouts are shared columns: a hitting row fills
-    # them from the batting line, a pitching row from the pitching line.
-    home_runs = batting.home_runs if batting is not None else _p(pitching, "home_runs")
-    walks = batting.walks if batting is not None else _p(pitching, "walks")
-    hit_by_pitch = batting.hit_by_pitch if batting is not None else _p(pitching, "hit_by_pitch")
-    strikeouts = batting.strikeouts if batting is not None else _p(pitching, "strikeouts")
-    return (
-        record.player_id,
-        record.season,
-        record.team_id,
-        record.stat_group,
-        record.pa,
-        record.ip,
-        record.woba,
-        record.xwoba,
-        record.wrc_plus,
-        record.fip,
-        record.k_bb_ratio,
-        batting.at_bats if batting is not None else None,
-        batting.singles if batting is not None else None,
-        batting.doubles if batting is not None else None,
-        batting.triples if batting is not None else None,
-        home_runs,
-        walks,
-        batting.intentional_walks if batting is not None else None,
-        hit_by_pitch,
-        batting.sacrifice_flies if batting is not None else None,
-        strikeouts,
-        batting.stolen_bases if batting is not None else None,
+    hitting = batting is not None
+
+    def shared(attribute: str) -> int | None:
+        """A column both groups populate, taken from whichever line this row is."""
+
+        source = batting if hitting else pitching
+        return getattr(source, attribute) if source is not None else None
+
+    def bat(attribute: str) -> int | None:
+        return getattr(batting, attribute) if batting is not None else None
+
+    def arm(attribute: str) -> int | None:
+        return getattr(pitching, attribute) if pitching is not None else None
+
+    values: tuple[object, ...] = (
+        record.player_id, record.season, record.team_id, record.stat_group,
+        record.pa, record.ip, record.woba, record.xwoba, record.wrc_plus,
+        record.fip, record.k_bb_ratio,
+        bat("at_bats"), bat("singles"), bat("doubles"), bat("triples"),
+        # Home runs, walks, HBP and strikeouts are shared columns: a hitting row fills
+        # them from the batting line, a pitching row from the pitching line.
+        shared("home_runs"), shared("walks"), bat("intentional_walks"),
+        shared("hit_by_pitch"), bat("sacrifice_flies"), shared("strikeouts"),
+        bat("stolen_bases"),
+        bat("runs"), bat("runs_batted_in"), bat("caught_stealing"),
+        bat("sacrifice_bunts"), bat("ground_into_double_play"),
+        shared("ground_outs"), shared("air_outs"), shared("games_played"),
+        arm("batters_faced"), arm("earned_runs"), arm("hits_allowed"),
+        arm("games_started"),
+        record.batting_average, record.obp, record.slg, record.ops, record.iso,
+        record.babip, record.era, record.whip, record.strikeout_rate,
+        record.walk_rate, record.ground_ball_rate,
         snapshot_id,
     )
-
-
-def _p(pitching: object, attribute: str) -> int | None:
-    return getattr(pitching, attribute) if pitching is not None else None
+    assert len(values) == len(_PLAYER_SEASON_STATS_COLUMNS)
+    return values

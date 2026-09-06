@@ -3,6 +3,10 @@
 Turns the ``/people/{id}/stats?stats=season&group=hitting|pitching`` response shape
 into :class:`PlayerSeasonStatRecord` rows that carry both the raw counting line and
 the computed sabermetrics, ready to upsert into ``player_season_stats``.
+
+The parser reads every field the payload already contains that any supported metric
+needs. Nothing here costs an extra request: the API returns 34 hitting and 62 pitching
+fields per player whether or not we read them.
 """
 
 from __future__ import annotations
@@ -13,8 +17,19 @@ from typing import Any, Literal
 from baseball_sim.sim.sabermetrics import (
     RawBattingLine,
     RawPitchingLine,
+    compute_babip,
+    compute_batting_average,
+    compute_era,
     compute_fip,
+    compute_ground_ball_rate,
+    compute_iso,
     compute_k_bb_ratio,
+    compute_obp,
+    compute_ops,
+    compute_slg,
+    compute_strikeout_rate,
+    compute_walk_rate,
+    compute_whip,
     compute_woba,
     compute_wrc_plus,
 )
@@ -37,6 +52,19 @@ class PlayerSeasonStatRecord:
     wrc_plus: float | None
     fip: float | None
     k_bb_ratio: float | None
+    # Widened metrics. All optional: a metric whose inputs were not ingested stays
+    # absent rather than being reported as zero.
+    batting_average: float | None = None
+    obp: float | None = None
+    slg: float | None = None
+    ops: float | None = None
+    iso: float | None = None
+    babip: float | None = None
+    era: float | None = None
+    whip: float | None = None
+    strikeout_rate: float | None = None
+    walk_rate: float | None = None
+    ground_ball_rate: float | None = None
 
 
 def _as_int(value: Any) -> int:
@@ -75,6 +103,10 @@ def innings_to_float(value: Any) -> float:
     return whole + thirds
 
 
+def _round(value: float | None, places: int) -> float | None:
+    return None if value is None else round(value, places)
+
+
 def parse_batting_line(stat: dict[str, Any]) -> RawBattingLine:
     hits = _as_int(stat.get("hits"))
     doubles = _as_int(stat.get("doubles"))
@@ -94,6 +126,14 @@ def parse_batting_line(stat: dict[str, Any]) -> RawBattingLine:
         sacrifice_flies=_as_int(stat.get("sacFlies")),
         strikeouts=_as_int(stat.get("strikeOuts")),
         stolen_bases=_as_int(stat.get("stolenBases")),
+        runs=_as_int(stat.get("runs")),
+        runs_batted_in=_as_int(stat.get("rbi")),
+        caught_stealing=_as_int(stat.get("caughtStealing")),
+        sacrifice_bunts=_as_int(stat.get("sacBunts")),
+        ground_into_double_play=_as_int(stat.get("groundIntoDoublePlay")),
+        ground_outs=_as_int(stat.get("groundOuts")),
+        air_outs=_as_int(stat.get("airOuts")),
+        games_played=_as_int(stat.get("gamesPlayed")),
     )
 
 
@@ -102,8 +142,15 @@ def parse_pitching_line(stat: dict[str, Any]) -> RawPitchingLine:
         innings_pitched=innings_to_float(stat.get("inningsPitched")),
         strikeouts=_as_int(stat.get("strikeOuts")),
         walks=_as_int(stat.get("baseOnBalls")),
-        hit_by_pitch=_as_int(stat.get("hitByPitch")),
+        hit_by_pitch=_as_int(stat.get("hitBatsmen") or stat.get("hitByPitch")),
         home_runs=_as_int(stat.get("homeRuns")),
+        batters_faced=_as_int(stat.get("battersFaced")),
+        earned_runs=_as_int(stat.get("earnedRuns")),
+        hits_allowed=_as_int(stat.get("hits")),
+        ground_outs=_as_int(stat.get("groundOuts")),
+        air_outs=_as_int(stat.get("airOuts")),
+        games_played=_as_int(stat.get("gamesPlayed")),
+        games_started=_as_int(stat.get("gamesStarted")),
     )
 
 
@@ -121,19 +168,26 @@ def _batting_record(
         pitching=None,
         pa=line.plate_appearances,
         ip=None,
-        woba=round(woba, 4) if woba is not None else None,
+        woba=_round(woba, 4),
         xwoba=None,  # Statcast expected stats are not ingested yet.
-        wrc_plus=round(wrc_plus, 1) if wrc_plus is not None else None,
+        wrc_plus=_round(wrc_plus, 1),
         fip=None,
         k_bb_ratio=None,
+        batting_average=_round(compute_batting_average(line), 4),
+        obp=_round(compute_obp(line), 4),
+        slg=_round(compute_slg(line), 4),
+        ops=_round(compute_ops(line), 4),
+        iso=_round(compute_iso(line), 4),
+        babip=_round(compute_babip(line), 4),
     )
 
 
 def _pitching_record(
     *, player_id: int, season: int, team_id: int | None, line: RawPitchingLine
 ) -> PlayerSeasonStatRecord:
-    fip = compute_fip(line) if line.innings_pitched > 0 else None
-    k_bb = compute_k_bb_ratio(line.strikeouts, line.walks) if line.innings_pitched > 0 else None
+    pitched = line.innings_pitched > 0
+    fip = compute_fip(line) if pitched else None
+    k_bb = compute_k_bb_ratio(line.strikeouts, line.walks) if pitched else None
     return PlayerSeasonStatRecord(
         player_id=player_id,
         season=season,
@@ -146,8 +200,13 @@ def _pitching_record(
         woba=None,
         xwoba=None,
         wrc_plus=None,
-        fip=round(fip, 3) if fip is not None else None,
-        k_bb_ratio=round(k_bb, 3) if k_bb is not None else None,
+        fip=_round(fip, 3),
+        k_bb_ratio=_round(k_bb, 3),
+        era=_round(compute_era(line), 3),
+        whip=_round(compute_whip(line), 3),
+        strikeout_rate=_round(compute_strikeout_rate(line), 4),
+        walk_rate=_round(compute_walk_rate(line), 4),
+        ground_ball_rate=_round(compute_ground_ball_rate(line), 4),
     )
 
 

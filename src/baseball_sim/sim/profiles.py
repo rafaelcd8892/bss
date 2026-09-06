@@ -46,6 +46,13 @@ _FIP_RANGE = (3.000, 5.000)
 _K_BB_RANGE = (1.500, 4.000)
 _NEUTRAL_RANGE_FACTOR = 0.5
 
+# Floors applied when aggregating a club. A pitcher's handful of plate appearances
+# would otherwise be summed into the team's wOBA, and a position player's mop-up
+# inning into its FIP. Filtering the ingest by position helps, but `primary_position`
+# can be stale; a floor here does not depend on that being right.
+MIN_TEAM_BATTING_PA = 25
+MIN_TEAM_PITCHING_IP = 5.0
+
 
 @dataclass(frozen=True)
 class TeamProfile:
@@ -93,8 +100,15 @@ def team_profile_from_stats(
     if not batting_lines and not pitching_lines:
         return None
 
-    offense, discipline, power, speed = _offense_factors(batting_lines, weights)
-    prevention, command = _pitching_factors(pitching_lines, fip_constants)
+    counted_batting = [
+        line for line in batting_lines if line.plate_appearances >= MIN_TEAM_BATTING_PA
+    ]
+    counted_pitching = [
+        line for line in pitching_lines if line.innings_pitched >= MIN_TEAM_PITCHING_IP
+    ]
+
+    offense, discipline, power, speed = _offense_factors(counted_batting, weights)
+    prevention, command = _pitching_factors(counted_pitching, fip_constants)
 
     return TeamProfile(
         offense=offense,

@@ -282,28 +282,36 @@ baselines currently ship unmeasured.
 
 Done when: there is a number, and it is in the docs.
 
-### Step 3 — Richer, cleaner ingestion
+### Step 3 — Richer, cleaner ingestion (DONE 2026-09-06)
 The API already returns far more than we parse: 34 hitting fields (we read 12) and 62
 pitching fields (we read 5), for requests we already pay for. wOBA and FIP are already
 correctly specified and will not change — this only adds metrics.
 
-- [ ] 3a. `bats` / `throws`: add `hydrate=person` to the roster fetch and read
+- [x] 3a. `bats` / `throws`: add `hydrate=person` to the roster fetch and read
       `person.batSide.code` / `person.pitchHand.code`. 30 requests, not 840.
-- [ ] 3b. Widen `player_season_stats` (migration) and the parser for fields already in
+- [x] 3b. Widen `player_season_stats` (migration) and the parser for fields already in
       the payload: runs, RBI, total bases, GIDP, sac bunts, caught stealing, ground/air
       outs; battersFaced, outs, earned runs, hits, games started, strikes/balls.
       Newly computable: BABIP, ISO, OBP/SLG/OPS, K%, BB%, WHIP, ERA, K/9, BB/9, HR/9,
       and a GB/FB approximation that enables xFIP.
-- [ ] 3c. Ingest by position — hitting for non-pitchers, pitching for pitchers, both for
+- [x] 3c. Ingest by position — hitting for non-pitchers, pitching for pitchers, both for
       TWP — with a flag to fetch every group. Halves the request count and drops most
       junk lines.
-- [ ] 3d. Separately, apply a playing-time floor when aggregating team profiles. This is
+- [x] 3d. Separately, apply a playing-time floor when aggregating team profiles. This is
       where the actual correctness win is: today a pitcher's handful of plate
       appearances is summed into the club's team wOBA. Filtering at ingestion helps but
       is brittle, because `primary_position` can be stale; a floor at aggregation is not.
 
 Done when: a re-ingest populates the new columns, wOBA/FIP are unchanged, and team
 profiles no longer count sub-threshold lines.
+
+- [ ] Follow-up: the widened metrics are stored but not yet served. Expose OBP/SLG/OPS,
+      ISO, BABIP, ERA, WHIP and the batter-faced rates through the player season
+      endpoint and the Explore player page, and consider adding some as leaderboard
+      metrics now that the columns exist.
+- [x] Skip scheduled games whose sides are not ingested clubs. The All-Star Game lists
+      the two league squads (ids 159/160), which have no row in `teams`; inserting one
+      violated a foreign key and rolled back an entire ingestion window.
 
 ### Step 4 — Persisted simulation runs and replay
 URL-based replay already covers the main use case, so this is about history and real

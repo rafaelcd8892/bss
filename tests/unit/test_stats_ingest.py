@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 
 from baseball_sim.config import Settings
-from baseball_sim.ingest.pipeline import ingest_mlb_window
+from baseball_sim.ingest.pipeline import ingest_mlb_window, stat_groups_for
 from baseball_sim.ingest.snapshot_store import SnapshotStore
 from baseball_sim.ingest.stats import (
     PlayerSeasonStatRecord,
@@ -179,11 +179,15 @@ async def test_pipeline_ingests_and_computes_player_stats(tmp_path: Path) -> Non
 
     assert repository.committed is True
     assert result.stats_snapshot_id is not None
-    assert result.player_stats_upserted == 2  # one hitting + one pitching record
-    groups = {record.stat_group for record in repository.player_stats}
-    assert groups == {"hitting", "pitching"}
-    hitting = next(r for r in repository.player_stats if r.stat_group == "hitting")
-    assert hitting.woba is not None
+    # The roster player is a right fielder, so only his hitting line is requested.
+    assert result.player_stats_upserted == 1
+    [record] = repository.player_stats
+    assert record.stat_group == "hitting"
+    assert record.woba is not None
+    # The widened parse fills the new rate stats too.
+    assert record.obp is not None
+    assert record.slg is not None
+    assert record.babip is not None
 
 
 @pytest.mark.asyncio
@@ -266,7 +270,71 @@ async def test_player_stats_ingestion_respects_concurrency_limit(tmp_path: Path)
         snapshot_store=store,
     )
 
-    # 12 players x 2 stat groups, but never more than 3 requests in flight at once.
-    assert result.player_stats_upserted == 24
+    # Twelve outfielders means twelve hitting requests, not twenty-four.
+    assert result.player_stats_upserted == 12
     assert client.max_in_flight <= 3
     assert client.max_in_flight > 1, "expected the requests to actually overlap"
+
+
+class TestStatGroupSelection:
+    def test_position_players_only_need_hitting(self) -> None:
+        assert stat_groups_for("RF", fetch_all=False) == ("hitting",)
+        assert stat_groups_for("2b", fetch_all=False) == ("hitting",)
+
+    def test_pitchers_only_need_pitching(self) -> None:
+        assert stat_groups_for("P", fetch_all=False) == ("pitching",)
+        assert stat_groups_for("RHP", fetch_all=False) == ("pitching",)
+
+    def test_declared_two_way_players_need_both(self) -> None:
+        assert stat_groups_for("TWP", fetch_all=False) == ("hitting", "pitching")
+
+    def test_an_unknown_position_falls_back_to_both(self) -> None:
+        # Missing position data must not silently drop a player's stats.
+        assert stat_groups_for(None, fetch_all=False) == ("hitting", "pitching")
+
+    def test_the_override_always_requests_both(self) -> None:
+        assert stat_groups_for("RF", fetch_all=True) == ("hitting", "pitching")
+
+
+@pytest.mark.asyncio
+async def test_two_way_players_still_get_both_groups(tmp_path: Path) -> None:
+    class TwoWayClient(FakeStatsClient):
+        async def get_team_roster(self, *, team_id: int, roster_type: str = "active") -> list[dict]:
+            del roster_type, team_id
+            return [
+                {
+                    "person": {"id": 660271, "fullName": "Shohei Ohtani"},
+                    "position": {"abbreviation": "TWP"},
+                }
+            ]
+
+    repository = FakeStatsRepository()
+    result = await ingest_mlb_window(
+        start_date="2026-04-01",
+        end_date="2026-04-02",
+        season=2026,
+        include_player_stats=True,
+        repository=repository,
+        client=TwoWayClient(),
+        snapshot_store=SnapshotStore(tmp_path / "raw"),
+    )
+
+    assert result.player_stats_upserted == 2
+    assert {record.stat_group for record in repository.player_stats} == {"hitting", "pitching"}
+
+
+@pytest.mark.asyncio
+async def test_all_stat_groups_override_doubles_the_requests(tmp_path: Path) -> None:
+    client = ConcurrencyProbeClient(player_count=4)
+    result = await ingest_mlb_window(
+        start_date="2026-04-01",
+        end_date="2026-04-02",
+        season=2026,
+        include_player_stats=True,
+        all_stat_groups=True,
+        repository=FakeStatsRepository(),
+        client=client,
+        snapshot_store=SnapshotStore(tmp_path / "raw"),
+    )
+
+    assert result.player_stats_upserted == 8

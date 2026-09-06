@@ -17,6 +17,15 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Also ingest per-player season stats and compute sabermetrics.",
     )
+    parser.add_argument(
+        "--all-stat-groups",
+        action="store_true",
+        help=(
+            "Request both hitting and pitching for every player instead of choosing "
+            "by position. Doubles the request count; useful when roster positions "
+            "are unreliable."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -27,6 +36,7 @@ async def _main() -> None:
         end_date=args.end_date,
         season=args.season,
         include_player_stats=args.include_player_stats,
+        all_stat_groups=args.all_stat_groups,
     )
     print(
         json.dumps(
@@ -39,6 +49,7 @@ async def _main() -> None:
                 "players_upserted": result.players_upserted,
                 "memberships_upserted": result.memberships_upserted,
                 "games_upserted": result.games_upserted,
+                "games_skipped": result.games_skipped,
                 "player_stats_upserted": result.player_stats_upserted,
             },
             indent=2,

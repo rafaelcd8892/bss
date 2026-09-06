@@ -17,7 +17,14 @@ class FakeMLBClient:
                 "abbreviation": "NYY",
                 "league": {"name": "American League"},
                 "division": {"name": "AL East"},
-            }
+            },
+            {
+                "id": 121,
+                "name": "New York Mets",
+                "abbreviation": "NYM",
+                "league": {"name": "National League"},
+                "division": {"name": "NL East"},
+            },
         ]
 
     async def get_team_roster(self, *, team_id: int, roster_type: str = "active") -> list[dict]:
@@ -119,8 +126,73 @@ async def test_ingest_pipeline_writes_snapshots_and_upserts(tmp_path: Path) -> N
     assert repository.committed is True
     assert repository.rolled_back is False
     assert len(repository.snapshots) == 3
-    assert result.teams_upserted == 1
+    assert result.teams_upserted == 2
     assert result.players_upserted == 1
     assert result.games_upserted == 1
+    assert result.games_skipped == 0
     assert result.memberships_upserted == 1
     assert repository.memberships[0].player_id == 592450
+
+
+class AllStarClient(FakeMLBClient):
+    """A schedule window containing the All-Star Game.
+
+    The league squads appear in the schedule with ids 159 and 160 but are not clubs,
+    have no roster, and never reach the teams table.
+    """
+
+    async def get_schedule(
+        self, *, start_date: str, end_date: str, sport_id: int = 1
+    ) -> list[dict]:
+        del start_date, end_date, sport_id
+        return [
+            {
+                "date": "2026-07-14",
+                "games": [
+                    {
+                        "gamePk": 990002,
+                        "season": "2026",
+                        "gameType": "A",
+                        "status": {"detailedState": "Final"},
+                        "teams": {
+                            "home": {"team": {"id": 159}, "score": 3},
+                            "away": {"team": {"id": 160}, "score": 2},
+                        },
+                    },
+                    {
+                        "gamePk": 990003,
+                        "season": "2026",
+                        "gameType": "R",
+                        "status": {"detailedState": "Final"},
+                        "teams": {
+                            "home": {"team": {"id": 147}, "score": 5},
+                            "away": {"team": {"id": 121}, "score": 1},
+                        },
+                    },
+                ],
+            }
+        ]
+
+
+@pytest.mark.asyncio
+async def test_games_against_non_clubs_are_skipped_not_failed(tmp_path: Path) -> None:
+    """Regression guard: this rolled back an entire ingestion run.
+
+    Inserting a game whose team has no row in `teams` violates a foreign key, which
+    aborted the transaction and discarded every other row in the window.
+    """
+    repository = FakeRepository()
+
+    result = await ingest_mlb_window(
+        start_date="2026-07-13",
+        end_date="2026-07-15",
+        season=2026,
+        repository=repository,
+        client=AllStarClient(),
+        snapshot_store=SnapshotStore(tmp_path / "raw"),
+    )
+
+    assert repository.committed is True
+    assert result.games_upserted == 1
+    assert result.games_skipped == 1
+    assert [game.game_pk for game in repository.games] == [990003]

@@ -78,11 +78,16 @@ python -m baseball_sim.ingest.run_sync --start-date 2026-04-01 --end-date 2026-0
 
 Raw payload snapshots are written under `BASEBALL_RAW_DATA_DIR` (default: `data/raw`).
 
-To also ingest per-player season stats and compute sabermetrics (wOBA, wRC+, FIP, K/BB):
+To also ingest per-player season stats and compute sabermetrics (wOBA, wRC+, FIP, K/BB,
+plus OBP/SLG/OPS, ISO, BABIP, ERA, WHIP and batter-faced rates):
 ```bash
 python -m baseball_sim.ingest.run_sync --start-date 2026-04-01 --end-date 2026-04-07 \
   --season 2026 --include-player-stats
 ```
+
+Stat groups are chosen by roster position — hitting for position players, pitching for
+pitchers, both for declared two-way players — which halves the request count. Pass
+`--all-stat-groups` to request both for everyone when roster positions are unreliable.
 
 ## Real Sabermetrics vs Synthetic Fallback
 Compare and simulation consume player/team ratings through a `StatsProvider`. By

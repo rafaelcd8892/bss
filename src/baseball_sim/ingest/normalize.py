@@ -91,18 +91,12 @@ def normalize_players(rosters_by_team: dict[str, list[dict[str, Any]]]) -> list[
                 continue
 
             position = row.get("position")
-            bats_throws = row.get("batSide"), row.get("pitchHand")
             primary_position = position.get("abbreviation") if isinstance(position, dict) else None
 
-            bats = None
-            if isinstance(bats_throws[0], dict):
-                code = bats_throws[0].get("code")
-                bats = code if isinstance(code, str) else None
-
-            throws = None
-            if isinstance(bats_throws[1], dict):
-                code = bats_throws[1].get("code")
-                throws = code if isinstance(code, str) else None
+            # Hydrated rosters carry handedness on the person; older payloads put it
+            # on the roster entry, so accept either.
+            bats = _hand_code(person.get("batSide") or row.get("batSide"))
+            throws = _hand_code(person.get("pitchHand") or row.get("pitchHand"))
 
             player_map[player_id] = PlayerRecord(
                 player_id=player_id,
@@ -152,6 +146,15 @@ def normalize_roster_memberships(
                 )
             )
     return memberships
+
+
+def _hand_code(value: Any) -> str | None:
+    """The single-letter code from an MLB ``{code, description}`` handedness object."""
+
+    if not isinstance(value, dict):
+        return None
+    code = value.get("code")
+    return code if isinstance(code, str) and code else None
 
 
 def normalize_games(schedule_dates: list[dict[str, Any]]) -> list[GameRecord]:
