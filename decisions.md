@@ -415,9 +415,46 @@ When adding a new decision, use this format:
   - Computing leaderboards client-side from a bulk stats dump (heavy, and it moves
     qualification rules out of one auditable place).
 
+## ADR-020: One Win-Probability Model, Server-Side
+- Date: 2026-09-06
+- Status: Accepted
+- Context:
+  - The product shipped two unrelated win-probability implementations. The viewer
+    computed its own baseline in the browser from score, inning, outs and base state,
+    while `/predict/game` derived team strength by hashing the seed. They disagreed on
+    the same matchup, and neither was complete: the viewer's model ignored team quality
+    entirely, so a tied first inning read 0.50 whether it was the best club against the
+    worst or the reverse; predict ignored game state and was not grounded in any data.
+- Decision:
+  - Build a single model in `sim/winprob.py` that combines both halves: team quality
+    becomes an expected runs-per-game rate from the matchup profiles, and game state
+    adds the current score, the outs remaining and the base/out run expectancy. A
+    pregame forecast is simply the case with no state.
+  - Carry the resulting probability on every play in the play-by-play response, so the
+    viewer renders a number it does not compute. The browser copy is deleted rather
+    than kept in sync.
+  - Rebuild `predict_game` on the stats provider and report `source` plus the run rates
+    behind the number, so the forecast can be audited.
+  - Determine `source` by comparing each club's profile against its seeded one: a
+    provider can still fall back per club, so supplying a provider is not proof that the
+    answer is grounded. It is reported `real` only when both clubs came from data.
+- Consequences:
+  - Both surfaces agree, and the seed no longer influences team quality when real stats
+    are available — the same matchup forecasts identically at any seed.
+  - The constants are documented starting values, not fitted ones. Widening the run-rate
+    band to match the observed league spread moved a best-versus-worst matchup from 57%
+    to 65%, which is the right order of magnitude; ADR-004 requires that the rest be
+    measured rather than hand-tuned, which is the next step.
+- Alternatives considered:
+  - Keeping the browser model and calling the API per play (85 requests to draw one game).
+  - Leaving predict as it was and labelling it (it is a public endpoint shaped like
+    analysis; a label does not make an invented number useful).
+
 ---
 
 ## Change Log
+- 2026-09-06: Added ADR-020; one win-probability model, server-side, with predict
+  rebuilt on real team profiles.
 - 2026-09-05: Added ADR-019; Analyze data foundations (per-metric provenance,
   leaderboards, team profile endpoint) landed before dashboard screens.
 - 2026-09-05: Added ADR-018; batting order now derives from season wOBA.

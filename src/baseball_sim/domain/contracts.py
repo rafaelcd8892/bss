@@ -220,6 +220,9 @@ class PlayByPlayEvent(BaseModel):
     description: str
     batter_id: int | None = None
     batter_name: str | None = None
+    #: Home win probability after this play, from the shared baseline model. Carried
+    #: with the play so a client never has to reimplement the model to draw it.
+    home_win_probability: float = Field(..., ge=0.0, le=1.0)
 
 
 class SimulateGamePlayByPlayResult(BaseModel):
@@ -246,6 +249,11 @@ class PredictGameResult(BaseModel):
     home_win_probability: float = Field(..., ge=0.0, le=1.0)
     away_win_probability: float = Field(..., ge=0.0, le=1.0)
     confidence: float = Field(..., ge=0.0, le=1.0)
+    #: "real" only when both clubs' profiles came from ingested stats.
+    source: MetricSource
+    #: The run rates the probability is built from, so it can be audited.
+    home_expected_runs: float
+    away_expected_runs: float
     explanation: list[str]
 
 

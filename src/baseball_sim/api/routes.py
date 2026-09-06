@@ -258,6 +258,9 @@ def simulate_game_play_by_play_endpoint(
 
 
 @router.post("/predict/game", response_model=PredictGameResponse)
-def predict_game_endpoint(request: PredictGameRequest) -> PredictGameResponse:
-    result = predict_game(request)
+def predict_game_endpoint(
+    request: PredictGameRequest,
+    settings: SettingsDependency,
+) -> PredictGameResponse:
+    result = predict_game(request, provider=get_stats_provider(settings))
     return PredictGameResponse(meta=ResponseMeta(context=request.context), result=result)

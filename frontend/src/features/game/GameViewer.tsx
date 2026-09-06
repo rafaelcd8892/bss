@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, type Play, type PlayByPlayResult } from "../../api/client";
 import { matchupAccents, teamLabel } from "../../teams";
 import { useTeamCatalog } from "../../useTeamCatalog";
-import { winProbability } from "./winprob";
 import { readParams, shareUrl, syncUrl, type GameParams } from "./url";
 import { BoxScore } from "./BoxScore";
 import { Diamond } from "./Diamond";
@@ -123,7 +122,9 @@ export function GameViewer({ dark }: { dark: boolean }) {
   const awayScore = current?.away_score_after_play ?? 0;
   const playsSoFar = useMemo(() => (index >= 0 ? plays.slice(0, index + 1) : []), [plays, index]);
   const { lineHome, lineAway } = useMemo(() => partialLine(playsSoFar), [playsSoFar]);
-  const wp = useMemo(() => winProbability(current, form.innings), [current, form.innings]);
+  // The win probability now travels with each play, computed by the same server-side
+  // model that backs /predict/game — the client no longer keeps its own copy.
+  const homeWinProbability = current?.home_win_probability ?? 0.5;
   const accents = useMemo(
     () => matchupAccents(form.homeTeamId, form.awayTeamId, dark),
     [form.homeTeamId, form.awayTeamId, dark],
@@ -248,8 +249,8 @@ export function GameViewer({ dark }: { dark: boolean }) {
         <WinProbability
           homeTeamId={form.homeTeamId}
           awayTeamId={form.awayTeamId}
-          home={wp.home}
-          final={wp.final || finished}
+          home={homeWinProbability}
+          final={finished}
           homeAccent={accents.home}
           awayAccent={accents.away}
         />

@@ -254,6 +254,12 @@
             "title": "Home Score After Play",
             "type": "integer"
           },
+          "home_win_probability": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Home Win Probability",
+            "type": "number"
+          },
           "inning": {
             "minimum": 1.0,
             "title": "Inning",
@@ -296,7 +302,8 @@
           "runs_scored_on_play",
           "home_score_after_play",
           "away_score_after_play",
-          "description"
+          "description",
+          "home_win_probability"
         ],
         "title": "PlayByPlayEvent",
         "type": "object"
@@ -603,6 +610,10 @@
       },
       "PredictGameResult": {
         "properties": {
+          "away_expected_runs": {
+            "title": "Away Expected Runs",
+            "type": "number"
+          },
           "away_team_id": {
             "exclusiveMinimum": 0.0,
             "title": "Away Team Id",
@@ -627,6 +638,10 @@
             "title": "Explanation",
             "type": "array"
           },
+          "home_expected_runs": {
+            "title": "Home Expected Runs",
+            "type": "number"
+          },
           "home_team_id": {
             "exclusiveMinimum": 0.0,
             "title": "Home Team Id",
@@ -637,6 +652,14 @@
             "minimum": 0.0,
             "title": "Home Win Probability",
             "type": "number"
+          },
+          "source": {
+            "enum": [
+              "real",
+              "synthetic"
+            ],
+            "title": "Source",
+            "type": "string"
           }
         },
         "required": [
@@ -645,6 +668,9 @@
           "home_win_probability",
           "away_win_probability",
           "confidence",
+          "source",
+          "home_expected_runs",
+          "away_expected_runs",
           "explanation"
         ],
         "title": "PredictGameResult",

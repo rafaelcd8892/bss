@@ -311,6 +311,8 @@ export interface components {
             half: "top" | "bottom";
             /** Home Score After Play */
             home_score_after_play: number;
+            /** Home Win Probability */
+            home_win_probability: number;
             /** Inning */
             inning: number;
             /** Outs After */
@@ -399,6 +401,8 @@ export interface components {
         };
         /** PredictGameResult */
         PredictGameResult: {
+            /** Away Expected Runs */
+            away_expected_runs: number;
             /** Away Team Id */
             away_team_id: number;
             /** Away Win Probability */
@@ -407,10 +411,17 @@ export interface components {
             confidence: number;
             /** Explanation */
             explanation: string[];
+            /** Home Expected Runs */
+            home_expected_runs: number;
             /** Home Team Id */
             home_team_id: number;
             /** Home Win Probability */
             home_win_probability: number;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "real" | "synthetic";
         };
         /** ResponseMeta */
         ResponseMeta: {

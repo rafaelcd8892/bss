@@ -255,17 +255,17 @@ grows with each DB feature that follows.
 Done when: the suite runs green locally and in CI, and a deliberately broken query
 fails a test rather than passing silently.
 
-### Step 2 — Rebuild `/predict/game` on real data
+### Step 2 — Rebuild `/predict/game` on real data (DONE 2026-09-06)
 Why: it is the only endpoint that publishes invented numbers unlabelled, and the
 product currently ships two disagreeing win-probability implementations — the viewer
 computes its own baseline in the frontend while `/predict/game` hashes the seed.
 
-- [ ] Move the win-probability baseline server-side (`sim/winprob.py`), pure and tested,
+- [x] Move the win-probability baseline server-side (`sim/winprob.py`), pure and tested,
       as the single model.
-- [ ] Rebuild `predict_game` on team profiles from the stats provider (pregame: no
+- [x] Rebuild `predict_game` on team profiles from the stats provider (pregame: no
       base/out state, so the projection reduces to team strength plus home advantage).
-- [ ] Report `source` and the inputs behind the number, as the team-profile endpoint does.
-- [ ] Point the viewer at the shared model so both surfaces agree on a matchup.
+- [x] Report `source` and the inputs behind the number, as the team-profile endpoint does.
+- [x] Point the viewer at the shared model so both surfaces agree on a matchup.
 
 Done when: a strong-versus-weak matchup moves the probability, the viewer and predict
 agree pregame, and nothing in the response is seed-derived without saying so.

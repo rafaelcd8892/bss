@@ -1,10 +1,10 @@
-import math
 
 from baseball_sim.domain.contracts import (
     ComparePlayersRequest,
     ComparePlayersResult,
     DeterministicContext,
     MetricComparison,
+    MetricSource,
     PlayByPlayEvent,
     PredictGameRequest,
     PredictGameResult,
@@ -18,37 +18,22 @@ from baseball_sim.domain.stats_provider import (
     METRIC_SPECS,
     StatsProvider,
 )
-from baseball_sim.sim.hashing import scale
-from baseball_sim.sim.profiles import TeamProfile
+from baseball_sim.sim.profiles import TeamProfile, synthetic_team_profile
 from baseball_sim.sim.rulesets import SimulationRuleset
 from baseball_sim.sim.state_machine import (
+    GameSimulationTrace,
     PlayTrace,
     simulate_game_state_machine,
     simulate_game_trace,
 )
+from baseball_sim.sim.winprob import (
+    HOME_FIELD_RUNS,
+    GameSituation,
+    team_run_rates,
+    win_probability,
+)
 
-
-def _team_strength(seed: int, team_id: int, salt: int) -> float:
-    offense = scale(
-        seed=seed,
-        entity_id=team_id,
-        salt=salt,
-        minimum=0.25,
-        maximum=0.42,
-        decimals=4,
-    )
-    pitching = scale(
-        seed=seed,
-        entity_id=team_id,
-        salt=salt + 11,
-        minimum=3.2,
-        maximum=4.8,
-        decimals=4,
-    )
-    offense_runs = 2.8 + ((offense - 0.25) / 0.17) * 2.0
-    pitching_adjustment = ((pitching - 3.2) / 1.6) * 1.2
-    return offense_runs + (1.2 - pitching_adjustment)
-
+HOME_FIELD_RUNS_LABEL = f"{HOME_FIELD_RUNS:g}-run"
 
 def compare_players(
     request: ComparePlayersRequest,
@@ -148,7 +133,7 @@ def simulate_game(
     )
 
 
-def _to_play_by_play_event(play: PlayTrace) -> PlayByPlayEvent:
+def _to_play_by_play_event(play: PlayTrace, home_win_probability: float) -> PlayByPlayEvent:
     return PlayByPlayEvent(
         play_index=play.play_index,
         inning=play.inning,
@@ -166,6 +151,7 @@ def _to_play_by_play_event(play: PlayTrace) -> PlayByPlayEvent:
         description=play.description,
         batter_id=play.batter_id,
         batter_name=play.batter_name,
+        home_win_probability=home_win_probability,
     )
 
 
@@ -210,33 +196,105 @@ def simulate_game_play_by_play(
         summary=summary,
         line_score_home=trace.line_score_home,
         line_score_away=trace.line_score_away,
-        plays=[_to_play_by_play_event(play) for play in trace.plays],
+        plays=_plays_with_win_probability(
+            trace=trace,
+            home_profile=home_profile,
+            away_profile=away_profile,
+            seed=seed,
+            home_team_id=request.home_team_id,
+            away_team_id=request.away_team_id,
+            scheduled_innings=request.innings,
+        ),
     )
 
 
-def predict_game(request: PredictGameRequest) -> PredictGameResult:
+def _resolved_profiles(
+    *,
+    provider: StatsProvider | None,
+    seed: int,
+    home_team_id: int,
+    away_team_id: int,
+) -> tuple[TeamProfile, TeamProfile, MetricSource]:
+    """Profiles for both clubs plus whether they actually came from ingested stats.
+
+    A provider can still fall back per club, so rather than trusting that one was
+    supplied, compare against the seeded profile: if it differs, it came from data.
+    """
+
+    synthetic_home = synthetic_team_profile(seed=seed, team_id=home_team_id)
+    synthetic_away = synthetic_team_profile(seed=seed, team_id=away_team_id)
+    if provider is None:
+        return synthetic_home, synthetic_away, "synthetic"
+
+    home = provider.team_profile(team_id=home_team_id, seed=seed)
+    away = provider.team_profile(team_id=away_team_id, seed=seed)
+    both_real = home != synthetic_home and away != synthetic_away
+    return home, away, "real" if both_real else "synthetic"
+
+
+def _plays_with_win_probability(
+    *,
+    trace: GameSimulationTrace,
+    home_profile: TeamProfile | None,
+    away_profile: TeamProfile | None,
+    seed: int,
+    home_team_id: int,
+    away_team_id: int,
+    scheduled_innings: int,
+) -> list[PlayByPlayEvent]:
+    home = home_profile or synthetic_team_profile(seed=seed, team_id=home_team_id)
+    away = away_profile or synthetic_team_profile(seed=seed, team_id=away_team_id)
+    home_rate, away_rate = team_run_rates(home_profile=home, away_profile=away)
+
+    events: list[PlayByPlayEvent] = []
+    for play in trace.plays:
+        probability = win_probability(
+            home_rate=home_rate,
+            away_rate=away_rate,
+            scheduled_innings=scheduled_innings,
+            situation=GameSituation(
+                inning=play.inning,
+                half=play.half,
+                outs=play.outs_after,
+                bases=play.bases_after,
+                home_score=play.home_score_after_play,
+                away_score=play.away_score_after_play,
+            ),
+        )
+        events.append(_to_play_by_play_event(play, probability.home))
+    return events
+
+
+def predict_game(
+    request: PredictGameRequest,
+    *,
+    provider: StatsProvider | None = None,
+) -> PredictGameResult:
     seed = request.context.seed
-    home = request.home_team_id
-    away = request.away_team_id
-
-    home_strength = _team_strength(seed=seed, team_id=home, salt=401)
-    away_strength = _team_strength(seed=seed, team_id=away, salt=409)
-    strength_delta = (home_strength - away_strength) + 0.18
-
-    home_prob = 1.0 / (1.0 + math.exp(-strength_delta))
-    away_prob = 1.0 - home_prob
-    confidence = abs(home_prob - 0.5) * 2.0
+    home_profile, away_profile, source = _resolved_profiles(
+        provider=provider,
+        seed=seed,
+        home_team_id=request.home_team_id,
+        away_team_id=request.away_team_id,
+    )
+    home_rate, away_rate = team_run_rates(home_profile=home_profile, away_profile=away_profile)
+    probability = win_probability(home_rate=home_rate, away_rate=away_rate)
 
     return PredictGameResult(
-        home_team_id=home,
-        away_team_id=away,
-        home_win_probability=round(home_prob, 4),
-        away_win_probability=round(away_prob, 4),
-        confidence=round(confidence, 4),
+        home_team_id=request.home_team_id,
+        away_team_id=request.away_team_id,
+        home_win_probability=probability.home,
+        away_win_probability=probability.away,
+        confidence=round(abs(probability.home - 0.5) * 2.0, 4),
+        source=source,
+        home_expected_runs=probability.home_expected_runs,
+        away_expected_runs=probability.away_expected_runs,
         explanation=[
-            "Probability derived from deterministic seeded team-strength function.",
-            "Home-field prior encoded as +0.18 log-odds shift.",
-            "Confidence is distance from 50/50 baseline.",
+            "Pregame baseline: team run rates from the matchup profiles, plus a "
+            f"{HOME_FIELD_RUNS_LABEL} home-field allowance.",
+            "Probability is a logistic on the projected run differential.",
+            f"Team profiles are {source}.",
+            "Baseline model, not calibrated — see ADR-004.",
         ],
     )
 
