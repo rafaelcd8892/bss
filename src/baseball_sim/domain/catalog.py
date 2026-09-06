@@ -7,6 +7,7 @@ the FastAPI dependency wiring lives in the routes module.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Protocol
 
 from baseball_sim.domain.contracts import PlayerSummary, TeamSummary
@@ -44,6 +45,18 @@ _GET_TEAM_ROSTER = """
     ORDER BY p.full_name
 """
 
+# Season wOBA for a set of players, newest snapshot per player. Used to order a
+# batting lineup by hitting quality instead of alphabetically.
+_GET_BATTING_WOBA = """
+    SELECT DISTINCT ON (player_id) player_id, woba
+    FROM player_season_stats
+    WHERE season = %s
+      AND stat_group = 'hitting'
+      AND woba IS NOT NULL
+      AND player_id = ANY(%s)
+    ORDER BY player_id, loaded_at_utc DESC
+"""
+
 
 class CatalogRepository(Protocol):
     def list_teams(self) -> list[TeamSummary]: ...
@@ -51,6 +64,10 @@ class CatalogRepository(Protocol):
     def get_player(self, *, player_id: int) -> PlayerSummary | None: ...
 
     def get_team_roster(self, *, team_id: int) -> list[PlayerSummary]: ...
+
+    def get_batting_woba(
+        self, *, player_ids: Sequence[int], season: int
+    ) -> dict[int, float]: ...
 
 
 class PostgresCatalogRepository:
@@ -105,3 +122,11 @@ class PostgresCatalogRepository:
             )
             for row in rows
         ]
+
+    def get_batting_woba(self, *, player_ids: Sequence[int], season: int) -> dict[int, float]:
+        if not player_ids:
+            return {}
+        with self._conn.cursor() as cursor:
+            cursor.execute(_GET_BATTING_WOBA, (season, list(player_ids)))
+            rows = cursor.fetchall()
+        return {int(row[0]): float(row[1]) for row in rows}

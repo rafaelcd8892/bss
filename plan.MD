@@ -17,11 +17,13 @@ bases, out-streak collapsing in the play log, draggable event-coloured scrubber,
 replay URLs, baseline win probability, final box score with standouts, team pickers.
 Suite: 82 tests, ruff + mypy --strict clean; frontend `npm run build` clean.
 
+Done 2026-09-05 (later): local Postgres 18 + `baseball` DB, migrations 0001-0003, real
+ingest (30 teams / 840 players / 934 stat rows / 70 games), `stats_source=postgres`
+verified end to end; ingestion concurrency bounded (ADR none, see commit); batting order
+now ordered by real season wOBA (ADR-018); tests made hermetic against a local `.env`.
+
 Open items, recommended order:
-1. Real data in the viewer: run Postgres, apply migrations, ingest an MLB window
-   (`run_sync --include-player-stats`), set `BASEBALL_STATS_SOURCE=postgres`, and confirm
-   real rosters/names and stat-driven team profiles reach the UI.
-2. Persist `simulation_runs` + `GET /games/{match_id}`; front `/replay/{match_id}` route.
+1. Persist `simulation_runs` + `GET /games/{match_id}`; front `/replay/{match_id}` route.
    (URL-based replay already works without a database; this adds history + snapshot ids.)
 3. Dashboard (Phase 7.2): compare + predict views over real sabermetrics, with charts.
 4. Pitcher attribution (simulator models defense at team level only today).

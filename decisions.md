@@ -356,9 +356,38 @@ When adding a new decision, use this format:
   - Reusing `/predict/game` for win probability: it is seed-hashed team strength and not
     situational, so it would not move during a game.
 
+## ADR-018: Batting Order Derived from Season wOBA
+- Date: 2026-09-05
+- Status: Accepted
+- Context:
+  - With real rosters ingested, `lineup_from_roster` took the first nine non-pitchers
+    from a roster query ordered by `full_name`, so the batting order was alphabetical:
+    Francisco Lindor batted eighth because of his initial. Harmless with synthetic
+    names, clearly wrong once the viewer showed real players.
+- Decision:
+  - Order the batting lineup by ingested season wOBA, best hitter first.
+  - Keep the ordering in Python (`lineup_from_roster`) and have the database only
+    supply data (`CatalogRepository.get_batting_woba`), so the rule is unit-testable
+    without a database.
+  - Players with no ingested wOBA sort last; ties break on name. The order is therefore
+    fully determined by the data, preserving the reproducibility contract.
+  - Pitchers remain excluded regardless of their hitting line.
+- Consequences:
+  - Lineups are materially more realistic and the best hitters get the most plate
+    appearances, which also makes run production respond to real team quality.
+  - This is an explainable heuristic, not a manager's card: it ignores speed,
+    handedness splits, defense and platoon usage. It must not be presented as a
+    predicted real lineup.
+  - Teams without ingested hitting stats fall back to the synthetic lineup unchanged.
+- Alternatives considered:
+  - Sorting in SQL (moves a modeling rule into the query and out of reach of tests).
+  - A fuller lineup-construction model (speed at the top, power in the middle) — worth
+    revisiting, but ADR-004 favours the explainable baseline first.
+
 ---
 
 ## Change Log
+- 2026-09-05: Added ADR-018; batting order now derives from season wOBA.
 - 2026-09-05: Added ADR-017; viewer visual system (theme tokens, club colors, scrubber,
   shareable replay URLs, baseline win probability, box score).
 - 2026-06-19: Added ADR-016; batter attribution via layered lineup providers.

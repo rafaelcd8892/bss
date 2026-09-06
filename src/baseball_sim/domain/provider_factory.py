@@ -30,5 +30,7 @@ def get_stats_provider(settings: Settings | None = None) -> StatsProvider | None
 def get_lineup_provider(settings: Settings | None = None) -> LineupProvider | None:
     app_settings = settings if settings is not None else get_settings()
     if app_settings.stats_source == "postgres":
-        return CatalogLineupProvider(dsn=app_settings.db_dsn)
+        return CatalogLineupProvider(
+            dsn=app_settings.db_dsn, season=app_settings.stats_season
+        )
     return None
