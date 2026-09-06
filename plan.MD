@@ -228,6 +228,111 @@ every view deep-linkable. Analyze holds player/team analysis; game-scoped analys
 - [ ] Rebuild `/predict/game` on the stats provider before featuring it (today it is
       seed-hashed and not situational, so it must stay out of the dashboard).
 
+## Execution Plan (agreed 2026-09-06)
+
+Ordered by dependency and risk. Each step lists what it delivers and how we know it
+is done. Steps are sequential unless marked parallel.
+
+### Step 1 — Integration tests against a real PostgreSQL
+Why first: roughly seven hand-written queries (DISTINCT ON, joins, ANY(%s), the
+latest-snapshot subquery) now serve four endpoints and three screens, and no test
+executes any of them — every test uses a fake repository. The cost of adding this
+grows with each DB feature that follows.
+
+- [ ] Test database fixture: create/reset `baseball_test`, apply migrations 0001-000N.
+      No Docker needed — the local PostgreSQL 18 install is enough; CI uses a service
+      container. Tests skip cleanly when no test database is reachable.
+- [ ] Deterministic seed fixture: 2 clubs, ~6 players covering a hitter, a pitcher and
+      a two-way player, plus one club with no stats.
+- [ ] Cover the read side: `list_teams`, `get_player`, `get_team_roster`,
+      `get_batting_woba`, `get_stat_leaders` (both directions + qualifier),
+      `get_team_stat_lines`, `get_all_team_stat_lines`, `get_player_season_lines`.
+- [ ] Cover the write side: ingestion upserts, and idempotency when the same snapshot
+      is ingested twice.
+- [ ] Verify the tests have teeth by breaking one query on purpose.
+
+Done when: the suite runs green locally and in CI, and a deliberately broken query
+fails a test rather than passing silently.
+
+### Step 2 — Rebuild `/predict/game` on real data
+Why: it is the only endpoint that publishes invented numbers unlabelled, and the
+product currently ships two disagreeing win-probability implementations — the viewer
+computes its own baseline in the frontend while `/predict/game` hashes the seed.
+
+- [ ] Move the win-probability baseline server-side (`sim/winprob.py`), pure and tested,
+      as the single model.
+- [ ] Rebuild `predict_game` on team profiles from the stats provider (pregame: no
+      base/out state, so the projection reduces to team strength plus home advantage).
+- [ ] Report `source` and the inputs behind the number, as the team-profile endpoint does.
+- [ ] Point the viewer at the shared model so both surfaces agree on a matchup.
+
+Done when: a strong-versus-weak matchup moves the probability, the viewer and predict
+agree pregame, and nothing in the response is seed-derived without saying so.
+
+### Step 2b — Calibration
+Why: ADR-004 says add complexity once the baseline's limits are *measured*. Two
+baselines currently ship unmeasured.
+
+- [ ] Backfill pregame probabilities for completed ingested games and compare to results.
+- [ ] Brier score plus reliability bins, written down per release.
+
+Done when: there is a number, and it is in the docs.
+
+### Step 3 — Richer, cleaner ingestion
+The API already returns far more than we parse: 34 hitting fields (we read 12) and 62
+pitching fields (we read 5), for requests we already pay for. wOBA and FIP are already
+correctly specified and will not change — this only adds metrics.
+
+- [ ] 3a. `bats` / `throws`: add `hydrate=person` to the roster fetch and read
+      `person.batSide.code` / `person.pitchHand.code`. 30 requests, not 840.
+- [ ] 3b. Widen `player_season_stats` (migration) and the parser for fields already in
+      the payload: runs, RBI, total bases, GIDP, sac bunts, caught stealing, ground/air
+      outs; battersFaced, outs, earned runs, hits, games started, strikes/balls.
+      Newly computable: BABIP, ISO, OBP/SLG/OPS, K%, BB%, WHIP, ERA, K/9, BB/9, HR/9,
+      and a GB/FB approximation that enables xFIP.
+- [ ] 3c. Ingest by position — hitting for non-pitchers, pitching for pitchers, both for
+      TWP — with a flag to fetch every group. Halves the request count and drops most
+      junk lines.
+- [ ] 3d. Separately, apply a playing-time floor when aggregating team profiles. This is
+      where the actual correctness win is: today a pitcher's handful of plate
+      appearances is summed into the club's team wOBA. Filtering at ingestion helps but
+      is brittle, because `primary_position` can be stale; a floor at aggregation is not.
+
+Done when: a re-ingest populates the new columns, wOBA/FIP are unchanged, and team
+profiles no longer count sub-threshold lines.
+
+### Step 4 — Persisted simulation runs and replay
+URL-based replay already covers the main use case, so this is about history and real
+snapshot lineage rather than the headline feature.
+
+- [ ] Persist `simulation_runs` on the serving path.
+- [ ] `GET /games/{match_id}`; front route `/replay/:matchId`.
+- [ ] Carry a real `data_snapshot_id` in the deterministic context instead of a literal.
+
+Done when: a simulated game can be recalled by `match_id` and replays identically.
+
+### Step 5 — Fielding, and pitcher attribution
+Cheaper than first assumed: fielding comes from the same `/people/{id}/stats` endpoint
+with `group=fielding`, returning one split per position played, including
+`rangeFactorPer9Inn`, assists, putouts, errors, chances, fielding pct and innings.
+
+- [ ] Ingest the fielding group; migration for the fielding columns.
+- [ ] Map it onto `range_factor` with a documented league range, replacing the neutral
+      0.5 every club carries today.
+- [ ] Pitcher attribution in the simulator, alongside the same defensive model.
+- [ ] Surface the column in the Teams table, which currently omits it as a constant.
+
+Done when: `range_factor` varies by club, determinism goldens are refreshed
+deliberately, and the Teams table shows it.
+
+### Step 6 — Statcast expected stats
+- [ ] Baseball Savant ingestion (a genuinely separate source per ADR-003), including a
+      terms-of-use review.
+- [ ] Populate `xwoba` so Compare stops labelling it seeded.
+
+Done when: `xwoba` reports `real` and the last synthetic metric in the compare table
+disappears.
+
 ## Risks and Mitigations
 - External API schema changes:
   - Mitigation: contract tests and versioned parsers.
