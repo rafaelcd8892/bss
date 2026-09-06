@@ -11,7 +11,13 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Protocol
 
-from baseball_sim.domain.contracts import LeaderMetric, PlayerSummary, StatLeader, TeamSummary
+from baseball_sim.domain.contracts import (
+    LeaderMetric,
+    PlayerSeasonLine,
+    PlayerSummary,
+    StatLeader,
+    TeamSummary,
+)
 from baseball_sim.domain.postgres_stats import (
     SEASON_STATS_COLUMNS,
     batting_line_from_row,
@@ -119,6 +125,10 @@ class CatalogRepository(Protocol):
     def get_all_team_stat_lines(
         self, *, season: int
     ) -> dict[int, tuple[list[RawBattingLine], list[RawPitchingLine]]]: ...
+
+    def get_player_season_lines(
+        self, *, player_id: int, season: int
+    ) -> list[PlayerSeasonLine]: ...
 
 
 class PostgresCatalogRepository:
@@ -273,3 +283,62 @@ class PostgresCatalogRepository:
             elif group == "pitching":
                 pitching.append(pitching_line_from_row(row))
         return by_team
+
+    def get_player_season_lines(
+        self, *, player_id: int, season: int
+    ) -> list[PlayerSeasonLine]:
+        """A player's stored season lines, newest snapshot per stat group."""
+
+        query = """
+            SELECT DISTINCT ON (stat_group)
+                   stat_group, team_id, pa, at_bats, singles, doubles, triples,
+                   home_runs, walks, strikeouts, stolen_bases, ip,
+                   woba, wrc_plus, fip, k_bb_ratio
+            FROM player_season_stats
+            WHERE player_id = %s AND season = %s
+            ORDER BY stat_group, loaded_at_utc DESC
+        """
+        with self._conn.cursor() as cursor:
+            cursor.execute(query, (player_id, season))
+            rows = cursor.fetchall()
+
+        lines: list[PlayerSeasonLine] = []
+        for row in rows:
+            group = str(row[0])
+            if group not in ("hitting", "pitching"):
+                continue
+            singles, doubles, triples, home_runs = row[4], row[5], row[6], row[7]
+            hits = (
+                sum(int(part) for part in (singles, doubles, triples, home_runs))
+                if group == "hitting" and singles is not None
+                else None
+            )
+            lines.append(
+                PlayerSeasonLine(
+                    stat_group="hitting" if group == "hitting" else "pitching",
+                    team_id=_optional_int(row[1]),
+                    plate_appearances=_optional_int(row[2]),
+                    at_bats=_optional_int(row[3]),
+                    hits=hits,
+                    doubles=_optional_int(doubles),
+                    triples=_optional_int(triples),
+                    home_runs=_optional_int(home_runs),
+                    walks=_optional_int(row[8]),
+                    strikeouts=_optional_int(row[9]),
+                    stolen_bases=_optional_int(row[10]),
+                    innings_pitched=_optional_float(row[11]),
+                    woba=_optional_float(row[12]),
+                    wrc_plus=_optional_float(row[13]),
+                    fip=_optional_float(row[14]),
+                    k_bb_ratio=_optional_float(row[15]),
+                )
+            )
+        return lines
+
+
+def _optional_int(value: object) -> int | None:
+    return int(value) if value is not None else None  # type: ignore[call-overload]
+
+
+def _optional_float(value: object) -> float | None:
+    return float(value) if value is not None else None  # type: ignore[arg-type]

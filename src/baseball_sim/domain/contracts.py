@@ -88,6 +88,33 @@ class TeamProfileResponse(BaseModel):
     pitchers_counted: int = Field(..., ge=0)
 
 
+class PlayerSeasonLine(BaseModel):
+    """One player's season line for a stat group, with the metrics computed from it."""
+
+    stat_group: Literal["hitting", "pitching"]
+    team_id: int | None = None
+    plate_appearances: int | None = None
+    at_bats: int | None = None
+    hits: int | None = None
+    doubles: int | None = None
+    triples: int | None = None
+    home_runs: int | None = None
+    walks: int | None = None
+    strikeouts: int | None = None
+    stolen_bases: int | None = None
+    innings_pitched: float | None = None
+    woba: float | None = None
+    wrc_plus: float | None = None
+    fip: float | None = None
+    k_bb_ratio: float | None = None
+
+
+class PlayerSeasonResponse(BaseModel):
+    player: PlayerSummary
+    season: int
+    lines: list[PlayerSeasonLine]
+
+
 class TeamProfileListResponse(BaseModel):
     season: int
     teams: list[TeamProfileResponse]

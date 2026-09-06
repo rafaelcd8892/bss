@@ -301,6 +301,214 @@
         "title": "PlayByPlayEvent",
         "type": "object"
       },
+      "PlayerSeasonLine": {
+        "description": "One player's season line for a stat group, with the metrics computed from it.",
+        "properties": {
+          "at_bats": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At Bats"
+          },
+          "doubles": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Doubles"
+          },
+          "fip": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fip"
+          },
+          "hits": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hits"
+          },
+          "home_runs": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Home Runs"
+          },
+          "innings_pitched": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Innings Pitched"
+          },
+          "k_bb_ratio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "K Bb Ratio"
+          },
+          "plate_appearances": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plate Appearances"
+          },
+          "stat_group": {
+            "enum": [
+              "hitting",
+              "pitching"
+            ],
+            "title": "Stat Group",
+            "type": "string"
+          },
+          "stolen_bases": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stolen Bases"
+          },
+          "strikeouts": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strikeouts"
+          },
+          "team_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team Id"
+          },
+          "triples": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Triples"
+          },
+          "walks": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Walks"
+          },
+          "woba": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Woba"
+          },
+          "wrc_plus": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wrc Plus"
+          }
+        },
+        "required": [
+          "stat_group"
+        ],
+        "title": "PlayerSeasonLine",
+        "type": "object"
+      },
+      "PlayerSeasonResponse": {
+        "properties": {
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/PlayerSeasonLine"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "player": {
+            "$ref": "#/components/schemas/PlayerSummary"
+          },
+          "season": {
+            "title": "Season",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "player",
+          "season",
+          "lines"
+        ],
+        "title": "PlayerSeasonResponse",
+        "type": "object"
+      },
       "PlayerSummary": {
         "properties": {
           "bats": {
@@ -1101,6 +1309,61 @@
           }
         },
         "summary": "Get Player Endpoint"
+      }
+    },
+    "/api/v1/players/{player_id}/season": {
+      "get": {
+        "operationId": "get_player_season_endpoint_api_v1_players__player_id__season_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "player_id",
+            "required": true,
+            "schema": {
+              "title": "Player Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "season",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Season"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayerSeasonResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Player Season Endpoint"
       }
     },
     "/api/v1/predict/game": {

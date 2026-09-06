@@ -200,8 +200,8 @@ Stack decision:
 - [ ] Pitcher attribution (simulator models defense at team level only today).
 
 ### Phase 7.2 — Analytics dashboard
-All three Analyze views are built and covered by frontend tests. Remaining: Explore
-screens, and a player search endpoint to replace the club -> roster cascade in Compare.
+All three Analyze views and the Explore screens are built and covered by tests.
+Remaining: a player search endpoint to replace the club -> roster cascade in Compare.
 Navigation skeleton decided: three sections (Game / Analyze / Explore) with react-router,
 every view deep-linkable. Analyze holds player/team analysis; game-scoped analysis
 (box score, win probability) stays inside the viewer.
@@ -220,7 +220,11 @@ every view deep-linkable. Analyze holds player/team analysis; game-scoped analys
 - [ ] A player search endpoint would beat the team -> roster cascade for picking.
 - [x] Frontend test suite: Vitest + Testing Library (40 tests), wired into CI as a
       second job alongside the Python one.
-- [ ] Explore screens: team and player pages over the catalog endpoints.
+- [x] Explore screens: clubs index, team page (profile + roster), player page with
+      season lines. Leaders and Compare link into player pages.
+- [ ] Ingestion drops `bats` / `throws`: `normalize_players` reads them off the roster
+      entry, but the MLB API returns them on `person` and only when hydrated. The
+      columns exist and are always NULL, so the UI omits them.
 - [ ] Rebuild `/predict/game` on the stats provider before featuring it (today it is
       seed-hashed and not situational, so it must stay out of the dashboard).
 

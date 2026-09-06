@@ -14,6 +14,7 @@ from baseball_sim.domain.contracts import (
     ComparePlayersRequest,
     ComparePlayersResponse,
     LeaderMetric,
+    PlayerSeasonResponse,
     PlayerSummary,
     PredictGameRequest,
     PredictGameResponse,
@@ -193,6 +194,25 @@ def get_player_endpoint(player_id: int, catalog: CatalogDependency) -> PlayerSum
     if player is None:
         raise HTTPException(status_code=404, detail=f"player {player_id} not found")
     return player
+
+
+@router.get("/players/{player_id}/season", response_model=PlayerSeasonResponse)
+def get_player_season_endpoint(
+    player_id: int,
+    catalog: CatalogDependency,
+    settings: SettingsDependency,
+    season: int | None = None,
+) -> PlayerSeasonResponse:
+    player = catalog.get_player(player_id=player_id)
+    if player is None:
+        raise HTTPException(status_code=404, detail=f"player {player_id} not found")
+
+    resolved_season = season if season is not None else settings.stats_season
+    return PlayerSeasonResponse(
+        player=player,
+        season=resolved_season,
+        lines=catalog.get_player_season_lines(player_id=player_id, season=resolved_season),
+    )
 
 
 @router.post("/compare/players", response_model=ComparePlayersResponse)

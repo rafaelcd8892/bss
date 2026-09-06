@@ -1,4 +1,4 @@
-import { useOutletContext, useSearchParams } from "react-router-dom";
+import { Link, useOutletContext, useSearchParams } from "react-router-dom";
 import type { MetricComparison } from "../../api/client";
 import type { ShellContext } from "../../components/AppShell";
 import { Card } from "../../components/Card";
@@ -12,7 +12,7 @@ import {
   formatMetric,
   goodnessRatio,
 } from "./metrics";
-import { useRoster, type RosterPlayer } from "./useRoster";
+import { useRoster, type RosterPlayer } from "../../useRoster";
 import { usePlayerCompare } from "./usePlayerCompare";
 
 const DEFAULT_SEED = 1234;
@@ -183,7 +183,11 @@ function PlayerPicker({
 }
 
 type ComparisonTableProps = {
-  data: { metrics: { [key: string]: MetricComparison }; left_player_id: number };
+  data: {
+    metrics: { [key: string]: MetricComparison };
+    left_player_id: number;
+    right_player_id: number;
+  };
   leftName: string;
   rightName: string;
   leftAccent: string;
@@ -220,11 +224,21 @@ function ComparisonTable({
       <div className="grid grid-cols-[minmax(0,1fr)_78px_minmax(0,1fr)] items-center gap-2 border-b border-line px-3.5 py-2.5">
         <div className="flex items-center gap-2">
           <span className="h-3.5 w-1 shrink-0 rounded-sm" style={{ background: leftAccent }} />
-          <span className="truncate text-sm font-medium text-ink">{leftName}</span>
+          <Link
+            to={`/explore/players/${data.left_player_id}`}
+            className="truncate text-sm font-medium text-ink underline-offset-2 hover:underline"
+          >
+            {leftName}
+          </Link>
         </div>
         <span className="text-center text-[11px] text-faint">vs</span>
         <div className="flex items-center justify-end gap-2">
-          <span className="truncate text-right text-sm font-medium text-ink">{rightName}</span>
+          <Link
+            to={`/explore/players/${data.right_player_id}`}
+            className="truncate text-right text-sm font-medium text-ink underline-offset-2 hover:underline"
+          >
+            {rightName}
+          </Link>
           <span className="h-3.5 w-1 shrink-0 rounded-sm" style={{ background: rightAccent }} />
         </div>
       </div>

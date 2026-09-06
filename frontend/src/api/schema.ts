@@ -55,6 +55,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/players/{player_id}/season": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Player Season Endpoint */
+        get: operations["get_player_season_endpoint_api_v1_players__player_id__season_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/predict/game": {
         parameters: {
             query?: never;
@@ -304,6 +321,55 @@ export interface components {
             play_index: number;
             /** Runs Scored On Play */
             runs_scored_on_play: number;
+        };
+        /**
+         * PlayerSeasonLine
+         * @description One player's season line for a stat group, with the metrics computed from it.
+         */
+        PlayerSeasonLine: {
+            /** At Bats */
+            at_bats?: number | null;
+            /** Doubles */
+            doubles?: number | null;
+            /** Fip */
+            fip?: number | null;
+            /** Hits */
+            hits?: number | null;
+            /** Home Runs */
+            home_runs?: number | null;
+            /** Innings Pitched */
+            innings_pitched?: number | null;
+            /** K Bb Ratio */
+            k_bb_ratio?: number | null;
+            /** Plate Appearances */
+            plate_appearances?: number | null;
+            /**
+             * Stat Group
+             * @enum {string}
+             */
+            stat_group: "hitting" | "pitching";
+            /** Stolen Bases */
+            stolen_bases?: number | null;
+            /** Strikeouts */
+            strikeouts?: number | null;
+            /** Team Id */
+            team_id?: number | null;
+            /** Triples */
+            triples?: number | null;
+            /** Walks */
+            walks?: number | null;
+            /** Woba */
+            woba?: number | null;
+            /** Wrc Plus */
+            wrc_plus?: number | null;
+        };
+        /** PlayerSeasonResponse */
+        PlayerSeasonResponse: {
+            /** Lines */
+            lines: components["schemas"]["PlayerSeasonLine"][];
+            player: components["schemas"]["PlayerSummary"];
+            /** Season */
+            season: number;
         };
         /** PlayerSummary */
         PlayerSummary: {
@@ -609,6 +675,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PlayerSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_player_season_endpoint_api_v1_players__player_id__season_get: {
+        parameters: {
+            query?: {
+                season?: number | null;
+            };
+            header?: never;
+            path: {
+                player_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlayerSeasonResponse"];
                 };
             };
             /** @description Validation Error */

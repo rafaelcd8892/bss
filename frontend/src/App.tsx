@@ -7,6 +7,9 @@ import {
   AnalyzeTeams,
 } from "./routes/AnalyzePage";
 import { ExplorePage } from "./routes/ExplorePage";
+import { PlayerPage } from "./features/catalog/PlayerPage";
+import { TeamPage } from "./features/catalog/TeamPage";
+import { TeamsIndex } from "./features/catalog/TeamsIndex";
 import { GamePage } from "./routes/GamePage";
 import { NotFoundPage } from "./routes/NotFoundPage";
 
@@ -33,7 +36,11 @@ export function App() {
             <Route path="leaders" element={<AnalyzeLeaders />} />
             <Route path="teams" element={<AnalyzeTeams />} />
           </Route>
-          <Route path="/explore" element={<ExplorePage />} />
+          <Route path="/explore" element={<ExplorePage />}>
+            <Route index element={<TeamsIndex />} />
+            <Route path="teams/:teamId" element={<TeamPage />} />
+            <Route path="players/:playerId" element={<PlayerPage />} />
+          </Route>
           <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>

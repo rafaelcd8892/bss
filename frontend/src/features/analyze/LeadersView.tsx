@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useOutletContext, useSearchParams } from "react-router-dom";
+import { Link, useOutletContext, useSearchParams } from "react-router-dom";
 import type { LeaderMetric, StatLeader } from "../../api/client";
 import type { ShellContext } from "../../components/AppShell";
 import { Card } from "../../components/Card";
@@ -186,7 +186,14 @@ function LeaderTable({ metric, leaders, loading, dark }: LeaderTableProps) {
                 <td className="px-3.5 py-2 text-right font-mono text-xs text-faint">
                   {leader.rank}
                 </td>
-                <td className="px-2 py-2 text-ink">{leader.full_name}</td>
+                <td className="px-2 py-2">
+                  <Link
+                    to={`/explore/players/${leader.player_id}`}
+                    className="text-ink underline-offset-2 hover:underline"
+                  >
+                    {leader.full_name}
+                  </Link>
+                </td>
                 <td className="px-2 py-2">
                   {team ? (
                     <span className="flex items-center gap-1.5">

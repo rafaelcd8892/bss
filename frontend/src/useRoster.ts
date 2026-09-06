@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { api } from "../../api/client";
-import type { components } from "../../api/schema";
+import { api } from "./api/client";
+import type { components } from "./api/schema";
 
 export type RosterPlayer = components["schemas"]["PlayerSummary"];
 
