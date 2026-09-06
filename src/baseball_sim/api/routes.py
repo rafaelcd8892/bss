@@ -22,6 +22,7 @@ from baseball_sim.domain.contracts import (
     SimulateGamePlayByPlayResponse,
     SimulateGameRequest,
     SimulateGameResponse,
+    SimulationRunResponse,
     StatLeadersResponse,
     TeamListResponse,
     TeamProfileFactors,
@@ -35,6 +36,10 @@ from baseball_sim.domain.service import (
     predict_game,
     simulate_game,
     simulate_game_play_by_play,
+)
+from baseball_sim.domain.simulation_runs import (
+    PostgresSimulationRunRepository,
+    SimulationRunRepository,
 )
 from baseball_sim.sim.profiles import (
     aggregate_batting,
@@ -63,6 +68,41 @@ def get_catalog_repository(settings: SettingsDependency) -> Iterator[CatalogRepo
 
 
 CatalogDependency = Annotated[CatalogRepository, Depends(get_catalog_repository)]
+
+
+def get_simulation_run_repository(
+    settings: SettingsDependency,
+) -> Iterator[SimulationRunRepository]:
+    repository = PostgresSimulationRunRepository(dsn=settings.db_dsn)
+    try:
+        yield repository
+    finally:
+        repository.close()
+
+
+def get_optional_run_recorder(
+    settings: SettingsDependency,
+) -> Iterator[SimulationRunRepository | None]:
+    """A recorder only when recording is switched on.
+
+    Opening a connection unconditionally would make the game viewer require a database
+    it does not otherwise need, so this yields None when persistence is off.
+    """
+
+    if not settings.persist_simulation_runs:
+        yield None
+        return
+    repository = PostgresSimulationRunRepository(dsn=settings.db_dsn)
+    try:
+        yield repository
+    finally:
+        repository.close()
+
+
+RunDependency = Annotated[SimulationRunRepository, Depends(get_simulation_run_repository)]
+RecorderDependency = Annotated[
+    SimulationRunRepository | None, Depends(get_optional_run_recorder)
+]
 
 
 @router.get("/health")
@@ -243,6 +283,7 @@ def simulate_game_endpoint(
 def simulate_game_play_by_play_endpoint(
     request: SimulateGameRequest,
     settings: SettingsDependency,
+    recorder: RecorderDependency,
 ) -> SimulateGamePlayByPlayResponse:
     loaded_ruleset = load_ruleset_from_path(settings.simulator_ruleset_path)
     result = simulate_game_play_by_play(
@@ -252,9 +293,31 @@ def simulate_game_play_by_play_endpoint(
         provider=get_stats_provider(settings),
         lineup_provider=get_lineup_provider(settings),
     )
+
+    if recorder is not None:
+        # Opt-in, and deliberately not swallowed: if recording was asked for and it
+        # fails, that is a real failure the caller should hear about.
+        recorder.record_run(
+            match_id=result.match_id,
+            context=request.context,
+            home_team_id=request.home_team_id,
+            away_team_id=request.away_team_id,
+            innings=request.innings,
+            stats_source=settings.stats_source,
+            summary=result.summary,
+        )
+
     return SimulateGamePlayByPlayResponse(
         meta=ResponseMeta(context=request.context), result=result
     )
+
+
+@router.get("/games/{match_id}", response_model=SimulationRunResponse)
+def get_simulation_run_endpoint(match_id: str, runs: RunDependency) -> SimulationRunResponse:
+    run = runs.get_run(match_id=match_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail=f"no recorded run for {match_id}")
+    return run
 
 
 @router.post("/predict/game", response_model=PredictGameResponse)

@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     mlb_stats_max_concurrency: int = 8
     simulator_ruleset_path: str = "rulesets/mlb_2026_regular.json"
     stats_source: str = "synthetic"
+    #: Record every simulated game so it can be recalled by match id. Off by
+    #: default so the viewer keeps working with no database at all.
+    persist_simulation_runs: bool = False
     stats_season: int = 2026
     cors_allow_origins: str = "*"
     frontend_dist_dir: str = "frontend/dist"

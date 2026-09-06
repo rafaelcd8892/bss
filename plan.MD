@@ -313,13 +313,16 @@ profiles no longer count sub-threshold lines.
       the two league squads (ids 159/160), which have no row in `teams`; inserting one
       violated a foreign key and rolled back an entire ingestion window.
 
-### Step 4 — Persisted simulation runs and replay
+### Step 4 — Persisted simulation runs and replay (DONE 2026-09-06)
 URL-based replay already covers the main use case, so this is about history and real
 snapshot lineage rather than the headline feature.
 
-- [ ] Persist `simulation_runs` on the serving path.
-- [ ] `GET /games/{match_id}`; front route `/replay/:matchId`.
-- [ ] Carry a real `data_snapshot_id` in the deterministic context instead of a literal.
+- [x] Persist `simulation_runs` on the serving path.
+- [x] `GET /games/{match_id}`; front route `/replay/:matchId`.
+- [x] Record which stats source served each run, for lineage. (The declared
+      `data_snapshot_id` stays caller-supplied: the contract allows any label and the
+      web client legitimately sends "ui", so it is stored as metadata, not as a
+      foreign key into the snapshot catalog.)
 
 Done when: a simulated game can be recalled by `match_id` and replays identically.
 

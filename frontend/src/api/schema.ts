@@ -21,6 +21,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/games/{match_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Simulation Run Endpoint */
+        get: operations["get_simulation_run_endpoint_api_v1_games__match_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health": {
         parameters: {
             query?: never;
@@ -443,6 +460,8 @@ export interface components {
             line_score_away: number[];
             /** Line Score Home */
             line_score_home: number[];
+            /** Match Id */
+            match_id: string;
             /** Plays */
             plays: components["schemas"]["PlayByPlayEvent"][];
             summary: components["schemas"]["SimulateGameResult"];
@@ -481,6 +500,33 @@ export interface components {
             innings_played: number;
             /** Winner Team Id */
             winner_team_id: number;
+        };
+        /**
+         * SimulationRunResponse
+         * @description A stored run, enough to reproduce the game exactly.
+         *
+         *     Deterministic simulation means the inputs are the replay: the stored summary is
+         *     kept as an audit record so a later run can be checked against it, not because the
+         *     game needs it to be reconstructed.
+         */
+        SimulationRunResponse: {
+            /** Away Team Id */
+            away_team_id: number;
+            context: components["schemas"]["DeterministicContext"];
+            /**
+             * Created At Utc
+             * Format: date-time
+             */
+            created_at_utc: string;
+            /** Home Team Id */
+            home_team_id: number;
+            /** Innings */
+            innings: number;
+            /** Match Id */
+            match_id: string;
+            /** Stats Source */
+            stats_source: string;
+            summary: components["schemas"]["SimulateGameResult"];
         };
         /** StatLeader */
         StatLeader: {
@@ -633,6 +679,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ComparePlayersResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_simulation_run_endpoint_api_v1_games__match_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                match_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimulationRunResponse"];
                 };
             };
             /** @description Validation Error */

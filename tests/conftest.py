@@ -16,6 +16,7 @@ PINNED_ENV = {
     "BASEBALL_APP_ENV": "dev",
     "BASEBALL_APP_NAME": "baseball-sim",
     "BASEBALL_STATS_SOURCE": "synthetic",
+    "BASEBALL_PERSIST_SIMULATION_RUNS": "false",
     "BASEBALL_STATS_SEASON": "2026",
     "BASEBALL_SIMULATOR_RULESET_PATH": "rulesets/mlb_2026_regular.json",
 }

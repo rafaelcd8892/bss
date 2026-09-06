@@ -18,8 +18,9 @@ from baseball_sim.domain.stats_provider import (
     METRIC_SPECS,
     StatsProvider,
 )
+from baseball_sim.sim.match_id import create_match_id
 from baseball_sim.sim.profiles import TeamProfile, synthetic_team_profile
-from baseball_sim.sim.rulesets import SimulationRuleset
+from baseball_sim.sim.rulesets import DEFAULT_RULESET, SimulationRuleset
 from baseball_sim.sim.state_machine import (
     GameSimulationTrace,
     PlayTrace,
@@ -165,6 +166,19 @@ def simulate_game_play_by_play(
 ) -> SimulateGamePlayByPlayResult:
     home_profile, away_profile, extra_assumptions = _resolve_profiles(request, provider)
     seed = request.context.seed
+    # The match id is the deterministic identity of this matchup: it must fold in
+    # everything that changes the game, including which ruleset produced it.
+    active_ruleset = ruleset if ruleset is not None else DEFAULT_RULESET
+    match_id = create_match_id(
+        seed=seed,
+        model_version=request.context.model_version,
+        data_snapshot_id=request.context.data_snapshot_id,
+        home_team_id=request.home_team_id,
+        away_team_id=request.away_team_id,
+        scheduled_innings=request.innings,
+        ruleset_id=active_ruleset.ruleset_id,
+        ruleset_checksum=ruleset_checksum or "",
+    )
     home_lineup = None
     away_lineup = None
     if lineup_provider is not None:
@@ -193,6 +207,7 @@ def simulate_game_play_by_play(
         assumptions=engine_result.assumptions + extra_assumptions,
     )
     return SimulateGamePlayByPlayResult(
+        match_id=match_id,
         summary=summary,
         line_score_home=trace.line_score_home,
         line_score_away=trace.line_score_away,

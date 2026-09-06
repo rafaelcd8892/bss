@@ -12,6 +12,7 @@ import { TeamPage } from "./features/catalog/TeamPage";
 import { TeamsIndex } from "./features/catalog/TeamsIndex";
 import { GamePage } from "./routes/GamePage";
 import { NotFoundPage } from "./routes/NotFoundPage";
+import { ReplayPage } from "./routes/ReplayPage";
 
 /**
  * The viewer used to live at the root, so replay links look like
@@ -30,6 +31,7 @@ export function App() {
         <Route element={<AppShell />}>
           <Route path="/" element={<RootRedirect />} />
           <Route path="/game" element={<GamePage />} />
+          <Route path="/replay/:matchId" element={<ReplayPage />} />
           <Route path="/analyze" element={<AnalyzePage />}>
             <Route index element={<Navigate to="compare" replace />} />
             <Route path="compare" element={<AnalyzeCompare />} />

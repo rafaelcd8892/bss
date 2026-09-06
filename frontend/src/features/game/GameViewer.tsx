@@ -304,6 +304,9 @@ export function GameViewer({ dark }: { dark: boolean }) {
               <span className="text-muted"> · </span>
               {teamLabel(result.summary.winner_team_id).name} win
               <span className="text-muted"> · reproducible from seed {form.seed}</span>
+              <span className="ml-2 font-mono text-[11px] text-faint">
+                {result.match_id}
+              </span>
             </span>
             <button onClick={() => void copyLink()} className={BUTTON}>
               {copied ? "link copied" : "copy replay link"}

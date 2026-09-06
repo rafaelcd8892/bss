@@ -725,6 +725,10 @@
             "title": "Line Score Home",
             "type": "array"
           },
+          "match_id": {
+            "title": "Match Id",
+            "type": "string"
+          },
           "plays": {
             "items": {
               "$ref": "#/components/schemas/PlayByPlayEvent"
@@ -737,6 +741,7 @@
           }
         },
         "required": [
+          "match_id",
           "summary",
           "line_score_home",
           "line_score_away",
@@ -843,6 +848,56 @@
           "assumptions"
         ],
         "title": "SimulateGameResult",
+        "type": "object"
+      },
+      "SimulationRunResponse": {
+        "description": "A stored run, enough to reproduce the game exactly.\n\nDeterministic simulation means the inputs are the replay: the stored summary is\nkept as an audit record so a later run can be checked against it, not because the\ngame needs it to be reconstructed.",
+        "properties": {
+          "away_team_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Away Team Id",
+            "type": "integer"
+          },
+          "context": {
+            "$ref": "#/components/schemas/DeterministicContext"
+          },
+          "created_at_utc": {
+            "format": "date-time",
+            "title": "Created At Utc",
+            "type": "string"
+          },
+          "home_team_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Home Team Id",
+            "type": "integer"
+          },
+          "innings": {
+            "title": "Innings",
+            "type": "integer"
+          },
+          "match_id": {
+            "title": "Match Id",
+            "type": "string"
+          },
+          "stats_source": {
+            "title": "Stats Source",
+            "type": "string"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/SimulateGameResult"
+          }
+        },
+        "required": [
+          "match_id",
+          "created_at_utc",
+          "home_team_id",
+          "away_team_id",
+          "innings",
+          "context",
+          "stats_source",
+          "summary"
+        ],
+        "title": "SimulationRunResponse",
         "type": "object"
       },
       "StatLeader": {
@@ -1274,6 +1329,45 @@
           }
         },
         "summary": "Compare Players Endpoint"
+      }
+    },
+    "/api/v1/games/{match_id}": {
+      "get": {
+        "operationId": "get_simulation_run_endpoint_api_v1_games__match_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "match_id",
+            "required": true,
+            "schema": {
+              "title": "Match Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimulationRunResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Simulation Run Endpoint"
       }
     },
     "/api/v1/health": {

@@ -226,6 +226,9 @@ class PlayByPlayEvent(BaseModel):
 
 
 class SimulateGamePlayByPlayResult(BaseModel):
+    #: Deterministic identity of this matchup: the same context always yields the same
+    #: id, and the same game. Use it to build a replay link.
+    match_id: str
     summary: SimulateGameResult
     line_score_home: list[int]
     line_score_away: list[int]
@@ -235,6 +238,25 @@ class SimulateGamePlayByPlayResult(BaseModel):
 class SimulateGamePlayByPlayResponse(BaseModel):
     meta: ResponseMeta
     result: SimulateGamePlayByPlayResult
+
+
+class SimulationRunResponse(BaseModel):
+    """A stored run, enough to reproduce the game exactly.
+
+    Deterministic simulation means the inputs are the replay: the stored summary is
+    kept as an audit record so a later run can be checked against it, not because the
+    game needs it to be reconstructed.
+    """
+
+    match_id: str
+    created_at_utc: datetime
+    home_team_id: PositiveInt
+    away_team_id: PositiveInt
+    innings: int
+    context: DeterministicContext
+    #: Which stats source served the run, for lineage.
+    stats_source: str
+    summary: SimulateGameResult
 
 
 class PredictGameRequest(BaseModel):

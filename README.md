@@ -89,6 +89,17 @@ Stat groups are chosen by roster position — hitting for position players, pitc
 pitchers, both for declared two-way players — which halves the request count. Pass
 `--all-stat-groups` to request both for everyone when roster positions are unreliable.
 
+## Recorded games and replay
+Set `BASEBALL_PERSIST_SIMULATION_RUNS=true` to record every simulated game. Each run is
+keyed by a deterministic `match_id` derived from the matchup, seed, model version,
+snapshot label and ruleset, and can be recalled at `GET /api/v1/games/{match_id}` or
+opened in the UI at `/replay/{match_id}`.
+
+Recording is off by default so the game viewer keeps working with no database. Because
+the simulation is deterministic, the stored context *is* the replay — the saved summary
+is kept as an audit record, so a later run can be checked against it if the engine
+changes.
+
 ## Real Sabermetrics vs Synthetic Fallback
 Compare and simulation consume player/team ratings through a `StatsProvider`. By
 default (`BASEBALL_STATS_SOURCE=synthetic`) ratings are deterministic seed-only values.
