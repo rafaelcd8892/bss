@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     mlb_stats_max_attempts: int = 3
     mlb_stats_backoff_seconds: float = 0.25
     mlb_stats_sport_id: int = 1
+    mlb_stats_max_concurrency: int = 8
     simulator_ruleset_path: str = "rulesets/mlb_2026_regular.json"
     stats_source: str = "synthetic"
     stats_season: int = 2026

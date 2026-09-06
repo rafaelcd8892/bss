@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol, cast
 
@@ -20,6 +20,28 @@ from baseball_sim.ingest.stats import PlayerSeasonStatRecord, normalize_player_s
 
 SOURCE_SYSTEM = "mlb_stats_api"
 STAT_GROUPS = ("hitting", "pitching")
+
+
+async def _gather_limited[T](
+    *,
+    limit: int,
+    factories: Sequence[Callable[[], Awaitable[T]]],
+) -> list[T]:
+    """Run awaitables with bounded concurrency.
+
+    Season-stats ingestion fans out to two requests per rostered player — well over a
+    thousand for a full league — so firing them all at once would hammer the public
+    MLB Stats API and invite rate limiting. A semaphore keeps the burst civil while
+    preserving result order.
+    """
+
+    semaphore = asyncio.Semaphore(max(1, limit))
+
+    async def run(factory: Callable[[], Awaitable[T]]) -> T:
+        async with semaphore:
+            return await factory()
+
+    return list(await asyncio.gather(*(run(factory) for factory in factories)))
 
 
 class SupportsMLBClient(Protocol):
@@ -91,6 +113,7 @@ async def ingest_mlb_window(
                     season=season,
                     sport_id=app_settings.mlb_stats_sport_id,
                     include_player_stats=include_player_stats,
+                    max_concurrency=app_settings.mlb_stats_max_concurrency,
                 )
         else:
             result = await _ingest_with_client(
@@ -102,6 +125,7 @@ async def ingest_mlb_window(
                 season=season,
                 sport_id=app_settings.mlb_stats_sport_id,
                 include_player_stats=include_player_stats,
+                max_concurrency=app_settings.mlb_stats_max_concurrency,
             )
         repo.commit()
         return result
@@ -123,9 +147,12 @@ async def _ingest_with_client(
     season: int,
     sport_id: int,
     include_player_stats: bool,
+    max_concurrency: int = 8,
 ) -> IngestionResult:
     teams_payload = await client.get_teams(sport_id=sport_id, season=season)
-    rosters_payload = await _fetch_rosters(client=client, teams_payload=teams_payload)
+    rosters_payload = await _fetch_rosters(
+        client=client, teams_payload=teams_payload, max_concurrency=max_concurrency
+    )
     schedule_dates = await client.get_schedule(
         start_date=start_date,
         end_date=end_date,
@@ -187,6 +214,7 @@ async def _ingest_with_client(
             snapshot_store=snapshot_store,
             players=players,
             season=season,
+            max_concurrency=max_concurrency,
         )
 
     return IngestionResult(
@@ -213,17 +241,28 @@ async def _ingest_player_stats(
     snapshot_store: SnapshotStore,
     players: Sequence[PlayerRecord],
     season: int,
+    max_concurrency: int = 8,
 ) -> tuple[str, int]:
     player_ids = sorted({player.player_id for player in players})
     raw_payloads: dict[str, dict[str, Any]] = {}
     records: list[PlayerSeasonStatRecord] = []
 
-    tasks = [
-        client.get_player_season_stats(player_id=player_id, season=season, group=group)
-        for player_id in player_ids
-        for group in STAT_GROUPS
-    ]
-    payloads = await asyncio.gather(*tasks)
+    def stats_factory(player_id: int, group: str) -> Callable[[], Awaitable[dict[str, Any]]]:
+        async def call() -> dict[str, Any]:
+            return await client.get_player_season_stats(
+                player_id=player_id, season=season, group=group
+            )
+
+        return call
+
+    payloads = await _gather_limited(
+        limit=max_concurrency,
+        factories=[
+            stats_factory(player_id, group)
+            for player_id in player_ids
+            for group in STAT_GROUPS
+        ],
+    )
 
     index = 0
     for player_id in player_ids:
@@ -264,8 +303,18 @@ async def _fetch_rosters(
     *,
     client: SupportsMLBClient,
     teams_payload: list[dict[str, Any]],
+    max_concurrency: int = 8,
 ) -> dict[str, list[dict[str, Any]]]:
     team_ids = sorted(team["id"] for team in teams_payload if isinstance(team.get("id"), int))
-    roster_tasks = [client.get_team_roster(team_id=team_id) for team_id in team_ids]
-    roster_results = await asyncio.gather(*roster_tasks)
+
+    def roster_factory(team_id: int) -> Callable[[], Awaitable[list[dict[str, Any]]]]:
+        async def call() -> list[dict[str, Any]]:
+            return await client.get_team_roster(team_id=team_id)
+
+        return call
+
+    roster_results = await _gather_limited(
+        limit=max_concurrency,
+        factories=[roster_factory(team_id) for team_id in team_ids],
+    )
     return {str(team_id): roster for team_id, roster in zip(team_ids, roster_results, strict=True)}

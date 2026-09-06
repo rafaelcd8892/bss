@@ -1,8 +1,10 @@
+import asyncio
 from pathlib import Path
 from typing import Any
 
 import pytest
 
+from baseball_sim.config import Settings
 from baseball_sim.ingest.pipeline import ingest_mlb_window
 from baseball_sim.ingest.snapshot_store import SnapshotStore
 from baseball_sim.ingest.stats import (
@@ -201,3 +203,70 @@ async def test_pipeline_skips_stats_by_default(tmp_path: Path) -> None:
     assert result.stats_snapshot_id is None
     assert result.player_stats_upserted == 0
     assert repository.player_stats == []
+
+
+class ConcurrencyProbeClient:
+    """Records the peak number of simultaneous season-stats requests."""
+
+    def __init__(self, player_count: int) -> None:
+        self.player_count = player_count
+        self.in_flight = 0
+        self.max_in_flight = 0
+
+    async def get_teams(self, *, sport_id: int = 1, season: int | None = None) -> list[dict]:
+        del sport_id, season
+        return [{"id": 147, "name": "New York Yankees"}]
+
+    async def get_team_roster(self, *, team_id: int, roster_type: str = "active") -> list[dict]:
+        del roster_type
+        if team_id != 147:
+            return []
+        return [
+            {
+                "person": {"id": 1000 + i, "fullName": f"Player {i}"},
+                "position": {"abbreviation": "RF"},
+            }
+            for i in range(self.player_count)
+        ]
+
+    async def get_schedule(
+        self, *, start_date: str, end_date: str, sport_id: int = 1
+    ) -> list[dict]:
+        del start_date, end_date, sport_id
+        return []
+
+    async def get_player_season_stats(
+        self, *, player_id: int, season: int, group: str
+    ) -> dict[str, Any]:
+        del player_id, season
+        self.in_flight += 1
+        self.max_in_flight = max(self.max_in_flight, self.in_flight)
+        try:
+            await asyncio.sleep(0.01)
+            return HITTING_PAYLOAD if group == "hitting" else PITCHING_PAYLOAD
+        finally:
+            self.in_flight -= 1
+
+
+@pytest.mark.asyncio
+async def test_player_stats_ingestion_respects_concurrency_limit(tmp_path: Path) -> None:
+    client = ConcurrencyProbeClient(player_count=12)
+    repository = FakeStatsRepository()
+    store = SnapshotStore(tmp_path / "raw")
+    settings = Settings(mlb_stats_max_concurrency=3)
+
+    result = await ingest_mlb_window(
+        start_date="2026-04-01",
+        end_date="2026-04-02",
+        season=2026,
+        include_player_stats=True,
+        settings=settings,
+        repository=repository,
+        client=client,
+        snapshot_store=store,
+    )
+
+    # 12 players x 2 stat groups, but never more than 3 requests in flight at once.
+    assert result.player_stats_upserted == 24
+    assert client.max_in_flight <= 3
+    assert client.max_in_flight > 1, "expected the requests to actually overlap"
