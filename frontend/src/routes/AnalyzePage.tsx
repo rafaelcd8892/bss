@@ -1,6 +1,7 @@
 import { NavLink, Outlet, useOutletContext } from "react-router-dom";
 import type { ShellContext } from "../components/AppShell";
 import { Placeholder } from "../components/Placeholder";
+import { CompareView } from "../features/analyze/CompareView";
 import { LeadersView } from "../features/analyze/LeadersView";
 
 const TABS = [
@@ -37,15 +38,7 @@ export function AnalyzePage() {
 }
 
 export function AnalyzeCompare() {
-  return (
-    <Placeholder
-      ready
-      title="Compare players"
-      description="Two players side by side across wOBA, xwOBA, wRC+, FIP and K/BB, with each
-        metric marked as measured or seeded so a placeholder is never mistaken for data."
-      endpoint="POST /api/v1/compare/players"
-    />
-  );
+  return <CompareView />;
 }
 
 export function AnalyzeLeaders() {

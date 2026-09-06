@@ -122,24 +122,39 @@ function alternateAccent(teamId: number, dark: boolean): string {
 }
 
 /**
- * Accents for a matchup. Many clubs share a near-identical navy or red, which would
- * make the scoreboard and win-probability bar unreadable, so fall back to a club's
- * secondary (and finally a neutral) until the two colors are clearly distinct.
+ * Distinct accents for any two clubs shown together. Many clubs share a near-identical
+ * navy or red, which would make a scoreboard, win-probability bar or comparison
+ * unreadable, so fall back to a club's secondary (and finally a neutral) until the two
+ * colors are clearly distinct.
  */
+export function pairAccents(
+  firstTeamId: number,
+  secondTeamId: number,
+  dark: boolean,
+): { first: string; second: string } {
+  const first = teamAccent(firstTeamId, dark);
+  const second = teamAccent(secondTeamId, dark);
+  if (colorDistance(first, second) >= MIN_MATCHUP_DISTANCE) return { first, second };
+
+  const secondAlt = alternateAccent(secondTeamId, dark);
+  if (colorDistance(first, secondAlt) >= MIN_MATCHUP_DISTANCE) {
+    return { first, second: secondAlt };
+  }
+
+  const firstAlt = alternateAccent(firstTeamId, dark);
+  if (colorDistance(firstAlt, second) >= MIN_MATCHUP_DISTANCE) {
+    return { first: firstAlt, second };
+  }
+
+  return { first, second: NEUTRAL_ACCENT };
+}
+
+/** Home/away naming for the game viewer. */
 export function matchupAccents(
   homeTeamId: number,
   awayTeamId: number,
   dark: boolean,
 ): { home: string; away: string } {
-  const home = teamAccent(homeTeamId, dark);
-  const away = teamAccent(awayTeamId, dark);
-  if (colorDistance(home, away) >= MIN_MATCHUP_DISTANCE) return { home, away };
-
-  const awayAlt = alternateAccent(awayTeamId, dark);
-  if (colorDistance(home, awayAlt) >= MIN_MATCHUP_DISTANCE) return { home, away: awayAlt };
-
-  const homeAlt = alternateAccent(homeTeamId, dark);
-  if (colorDistance(homeAlt, away) >= MIN_MATCHUP_DISTANCE) return { home: homeAlt, away };
-
-  return { home, away: NEUTRAL_ACCENT };
+  const { first, second } = pairAccents(homeTeamId, awayTeamId, dark);
+  return { home: first, away: second };
 }
