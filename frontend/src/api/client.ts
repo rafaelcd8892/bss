@@ -11,3 +11,5 @@ export type StatLeader = components["schemas"]["StatLeader"];
 export type LeaderMetric = StatLeadersResult["metric"];
 export type MetricComparison = components["schemas"]["MetricComparison"];
 export type ComparePlayersResult = components["schemas"]["ComparePlayersResult"];
+export type TeamProfile = components["schemas"]["TeamProfileResponse"];
+export type TeamProfileFactors = components["schemas"]["TeamProfileFactors"];

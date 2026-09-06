@@ -1,8 +1,8 @@
 import { NavLink, Outlet, useOutletContext } from "react-router-dom";
 import type { ShellContext } from "../components/AppShell";
-import { Placeholder } from "../components/Placeholder";
 import { CompareView } from "../features/analyze/CompareView";
 import { LeadersView } from "../features/analyze/LeadersView";
+import { TeamsView } from "../features/analyze/TeamsView";
 
 const TABS = [
   { to: "/analyze/compare", label: "Compare" },
@@ -46,13 +46,5 @@ export function AnalyzeLeaders() {
 }
 
 export function AnalyzeTeams() {
-  return (
-    <Placeholder
-      ready
-      title="Team profiles"
-      description="The seven matchup factors the simulator actually consumes, alongside the
-        aggregate wOBA and FIP behind them, so a team rating can be audited."
-      endpoint="GET /api/v1/teams/{id}/profile"
-    />
-  );
+  return <TeamsView />;
 }

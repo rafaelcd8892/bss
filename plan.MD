@@ -200,6 +200,8 @@ Stack decision:
 - [ ] Pitcher attribution (simulator models defense at team level only today).
 
 ### Phase 7.2 — Analytics dashboard
+All three Analyze views are built. Remaining: Explore screens, frontend tests, and a
+player search endpoint to replace the club -> roster cascade in Compare.
 Navigation skeleton decided: three sections (Game / Analyze / Explore) with react-router,
 every view deep-linkable. Analyze holds player/team analysis; game-scoped analysis
 (box score, win probability) stays inside the viewer.
@@ -213,7 +215,8 @@ every view deep-linkable. Analyze holds player/team analysis; game-scoped analys
 - [x] Analyze screen: Leaders (metric, qualifier and limit all live in the URL).
 - [x] Analyze screen: Compare (per-metric provenance visible; seeded metrics excluded
       from the verdict). Player picking cascades team -> roster.
-- [ ] Analyze screen: Teams.
+- [x] Analyze screen: Teams — sortable league table over `GET /stats/teams`, with the
+      aggregate wOBA/FIP inputs alongside the factors.
 - [ ] A player search endpoint would beat the team -> roster cascade for picking.
 - [ ] Frontend has no automated tests yet — only `tsc --noEmit` plus manual checks.
 - [ ] Explore screens: team and player pages over the catalog endpoints.

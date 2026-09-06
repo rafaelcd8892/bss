@@ -116,6 +116,10 @@ class CatalogRepository(Protocol):
         self, *, team_id: int, season: int
     ) -> tuple[list[RawBattingLine], list[RawPitchingLine]]: ...
 
+    def get_all_team_stat_lines(
+        self, *, season: int
+    ) -> dict[int, tuple[list[RawBattingLine], list[RawPitchingLine]]]: ...
+
 
 class PostgresCatalogRepository:
     def __init__(self, *, dsn: str) -> None:
@@ -239,3 +243,33 @@ class PostgresCatalogRepository:
         batting = [batting_line_from_row(row) for row in rows if str(row[2]) == "hitting"]
         pitching = [pitching_line_from_row(row) for row in rows if str(row[2]) == "pitching"]
         return batting, pitching
+
+    def get_all_team_stat_lines(
+        self, *, season: int
+    ) -> dict[int, tuple[list[RawBattingLine], list[RawPitchingLine]]]:
+        """Every club's lines for a season in one round trip.
+
+        The league table needs all thirty profiles at once; fetching them per team
+        would open thirty connections to render one screen.
+        """
+
+        query = f"""
+            SELECT DISTINCT ON (player_id, stat_group) {SEASON_STATS_COLUMNS}
+            FROM player_season_stats
+            WHERE season = %s AND team_id IS NOT NULL
+            ORDER BY player_id, stat_group, loaded_at_utc DESC
+        """
+        with self._conn.cursor() as cursor:
+            cursor.execute(query, (season,))
+            rows = cursor.fetchall()
+
+        by_team: dict[int, tuple[list[RawBattingLine], list[RawPitchingLine]]] = {}
+        for row in rows:
+            team_id = int(row[1])
+            batting, pitching = by_team.setdefault(team_id, ([], []))
+            group = str(row[2])
+            if group == "hitting":
+                batting.append(batting_line_from_row(row))
+            elif group == "pitching":
+                pitching.append(pitching_line_from_row(row))
+        return by_team

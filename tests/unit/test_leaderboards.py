@@ -188,3 +188,52 @@ def test_team_profile_falls_back_to_synthetic_without_data() -> None:
     assert payload["source"] == "synthetic"
     assert payload["batters_counted"] == 0
     assert payload["team_woba"] is None
+
+
+class FakeLeagueCatalog(FakeLeaderCatalog):
+    def get_all_team_stat_lines(
+        self, *, season: int
+    ) -> dict[int, tuple[list[RawBattingLine], list[RawPitchingLine]]]:
+        del season
+        return {
+            147: ([ELITE_LINE] * 9, [ACE_LINE] * 5),
+            # A club with hitting only still gets a profile; pitching stays neutral.
+            121: ([ELITE_LINE] * 4, []),
+        }
+
+
+def test_league_team_profiles() -> None:
+    catalog = FakeLeagueCatalog()
+    app.dependency_overrides[get_catalog_repository] = lambda: catalog
+    try:
+        response = TestClient(app).get("/api/v1/stats/teams")
+    finally:
+        app.dependency_overrides.pop(get_catalog_repository, None)
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["season"] == 2026
+    teams = {team["team_id"]: team for team in payload["teams"]}
+    assert set(teams) == {121, 147}
+    assert all(team["source"] == "real" for team in teams.values())
+
+    # Every club reports the aggregate inputs behind its factors.
+    assert teams[147]["batters_counted"] == 9
+    assert teams[147]["pitchers_counted"] == 5
+    assert teams[147]["team_fip"] is not None
+    # No pitching ingested for 121, so FIP is absent rather than invented.
+    assert teams[121]["pitchers_counted"] == 0
+    assert teams[121]["team_fip"] is None
+    assert teams[121]["factors"]["prevention"] == 0.5
+
+
+def test_league_profiles_are_ordered_by_team_id() -> None:
+    catalog = FakeLeagueCatalog()
+    app.dependency_overrides[get_catalog_repository] = lambda: catalog
+    try:
+        payload = TestClient(app).get("/api/v1/stats/teams").json()
+    finally:
+        app.dependency_overrides.pop(get_catalog_repository, None)
+
+    ids = [team["team_id"] for team in payload["teams"]]
+    assert ids == sorted(ids)

@@ -794,6 +794,27 @@
         "title": "TeamProfileFactors",
         "type": "object"
       },
+      "TeamProfileListResponse": {
+        "properties": {
+          "season": {
+            "title": "Season",
+            "type": "integer"
+          },
+          "teams": {
+            "items": {
+              "$ref": "#/components/schemas/TeamProfileResponse"
+            },
+            "title": "Teams",
+            "type": "array"
+          }
+        },
+        "required": [
+          "season",
+          "teams"
+        ],
+        "title": "TeamProfileListResponse",
+        "type": "object"
+      },
       "TeamProfileResponse": {
         "properties": {
           "batters_counted": {
@@ -1287,6 +1308,52 @@
           }
         },
         "summary": "Stat Leaders Endpoint"
+      }
+    },
+    "/api/v1/stats/teams": {
+      "get": {
+        "operationId": "team_profiles_endpoint_api_v1_stats_teams_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "season",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Season"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamProfileListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Team Profiles Endpoint"
       }
     },
     "/api/v1/teams": {

@@ -123,6 +123,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/stats/teams": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Team Profiles Endpoint */
+        get: operations["team_profiles_endpoint_api_v1_stats_teams_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/teams": {
         parameters: {
             query?: never;
@@ -449,6 +466,13 @@ export interface components {
             /** Speed */
             speed: number;
         };
+        /** TeamProfileListResponse */
+        TeamProfileListResponse: {
+            /** Season */
+            season: number;
+            /** Teams */
+            teams: components["schemas"]["TeamProfileResponse"][];
+        };
         /** TeamProfileResponse */
         TeamProfileResponse: {
             /** Batters Counted */
@@ -719,6 +743,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StatLeadersResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    team_profiles_endpoint_api_v1_stats_teams_get: {
+        parameters: {
+            query?: {
+                season?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeamProfileListResponse"];
                 };
             };
             /** @description Validation Error */

@@ -88,6 +88,11 @@ class TeamProfileResponse(BaseModel):
     pitchers_counted: int = Field(..., ge=0)
 
 
+class TeamProfileListResponse(BaseModel):
+    season: int
+    teams: list[TeamProfileResponse]
+
+
 LeaderMetric = Literal["woba", "wrc_plus", "fip", "k_bb_ratio"]
 
 
