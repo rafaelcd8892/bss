@@ -39,6 +39,9 @@ from baseball_sim.sim.sabermetrics import (
 
 MetricDirection = Literal["higher_is_better", "lower_is_better"]
 RatingSource = Literal["synthetic", "real", "real_partial"]
+#: Where a single metric's value came from. Reported per metric so a UI can never
+#: present a hashed placeholder with the same authority as an ingested measurement.
+MetricSource = Literal["real", "synthetic"]
 
 
 @dataclass(frozen=True)
@@ -65,7 +68,27 @@ METRIC_SPECS: dict[str, MetricSpec] = {
 class PlayerRating:
     player_id: int
     metrics: dict[str, float]
+    #: Provenance per metric name, parallel to ``metrics``.
+    sources: dict[str, MetricSource]
+    #: Roll-up of ``sources``, kept for summaries and provider layering.
     source: RatingSource
+
+
+def rollup_source(sources: Mapping[str, MetricSource]) -> RatingSource:
+    """Summarize per-metric provenance.
+
+    A rating is only ``real`` when every metric came from ingested data. Because
+    ``xwoba`` needs Statcast, which is not ingested yet, real players currently report
+    ``real_partial`` — that is deliberate: it keeps the remaining gap visible instead
+    of letting one synthetic metric hide inside a "real" label.
+    """
+
+    values = set(sources.values())
+    if not values or values == {"synthetic"}:
+        return "synthetic"
+    if values == {"real"}:
+        return "real"
+    return "real_partial"
 
 
 class StatsProvider(Protocol):
@@ -89,7 +112,12 @@ class SyntheticStatsProvider:
             )
             for name, spec in METRIC_SPECS.items()
         }
-        return PlayerRating(player_id=player_id, metrics=metrics, source="synthetic")
+        return PlayerRating(
+            player_id=player_id,
+            metrics=metrics,
+            sources={name: "synthetic" for name in METRIC_SPECS},
+            source="synthetic",
+        )
 
     def team_profile(self, *, team_id: int, seed: int) -> TeamProfile:
         return synthetic_team_profile(seed=seed, team_id=team_id)
@@ -101,7 +129,7 @@ class StatLineStatsProvider:
     A position player contributes real hitting metrics (``woba``, ``wrc_plus``); a
     pitcher contributes real ``fip`` and ``k_bb_ratio``. Metrics not derivable from a
     player's data (e.g. a hitter's FIP, or ``xwoba`` which needs Statcast) are filled
-    from ``fallback`` and the rating is marked ``real_partial``.
+    from ``fallback`` and reported as ``synthetic`` in :attr:`PlayerRating.sources`.
     """
 
     def __init__(
@@ -133,6 +161,7 @@ class StatLineStatsProvider:
 
         baseline = self._fallback.player_rating(player_id=player_id, seed=seed)
         metrics = dict(baseline.metrics)
+        sources: dict[str, MetricSource] = dict(baseline.sources)
 
         if batting is not None and batting.woba_denominator > 0:
             woba = compute_woba(batting, self._weights)
@@ -140,6 +169,8 @@ class StatLineStatsProvider:
             metrics["wrc_plus"] = round(
                 compute_wrc_plus(woba, self._weights), METRIC_SPECS["wrc_plus"].decimals
             )
+            sources["woba"] = "real"
+            sources["wrc_plus"] = "real"
 
         if pitching is not None and pitching.innings_pitched > 0:
             metrics["fip"] = round(
@@ -149,10 +180,15 @@ class StatLineStatsProvider:
                 compute_k_bb_ratio(pitching.strikeouts, pitching.walks),
                 METRIC_SPECS["k_bb_ratio"].decimals,
             )
+            sources["fip"] = "real"
+            sources["k_bb_ratio"] = "real"
 
-        has_both = batting is not None and pitching is not None
-        source: RatingSource = "real" if has_both else "real_partial"
-        return PlayerRating(player_id=player_id, metrics=metrics, source=source)
+        return PlayerRating(
+            player_id=player_id,
+            metrics=metrics,
+            sources=sources,
+            source=rollup_source(sources),
+        )
 
     def team_profile(self, *, team_id: int, seed: int) -> TeamProfile:
         profile = team_profile_from_stats(

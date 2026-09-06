@@ -1,307 +1,29 @@
 {
-  "openapi": "3.1.0",
-  "info": {
-    "title": "baseball-sim",
-    "description": "Deterministic sabermetrics-driven MLB simulation API.",
-    "version": "0.1.0"
-  },
-  "paths": {
-    "/api/v1/health": {
-      "get": {
-        "summary": "Health",
-        "operationId": "health_api_v1_health_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
-                  "type": "object",
-                  "title": "Response Health Api V1 Health Get"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/teams": {
-      "get": {
-        "summary": "List Teams Endpoint",
-        "operationId": "list_teams_endpoint_api_v1_teams_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TeamListResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/teams/{team_id}/roster": {
-      "get": {
-        "summary": "Get Team Roster Endpoint",
-        "operationId": "get_team_roster_endpoint_api_v1_teams__team_id__roster_get",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Team Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TeamRosterResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/players/{player_id}": {
-      "get": {
-        "summary": "Get Player Endpoint",
-        "operationId": "get_player_endpoint_api_v1_players__player_id__get",
-        "parameters": [
-          {
-            "name": "player_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Player Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PlayerSummary"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/compare/players": {
-      "post": {
-        "summary": "Compare Players Endpoint",
-        "operationId": "compare_players_endpoint_api_v1_compare_players_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ComparePlayersRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ComparePlayersResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/simulate/game": {
-      "post": {
-        "summary": "Simulate Game Endpoint",
-        "operationId": "simulate_game_endpoint_api_v1_simulate_game_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SimulateGameRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SimulateGameResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/simulate/game/play-by-play": {
-      "post": {
-        "summary": "Simulate Game Play By Play Endpoint",
-        "operationId": "simulate_game_play_by_play_endpoint_api_v1_simulate_game_play_by_play_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SimulateGameRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SimulateGamePlayByPlayResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/predict/game": {
-      "post": {
-        "summary": "Predict Game Endpoint",
-        "operationId": "predict_game_endpoint_api_v1_predict_game_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PredictGameRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PredictGameResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  },
   "components": {
     "schemas": {
       "ComparePlayersRequest": {
         "properties": {
-          "left_player_id": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
-            "title": "Left Player Id"
-          },
-          "right_player_id": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
-            "title": "Right Player Id"
-          },
           "context": {
             "$ref": "#/components/schemas/DeterministicContext"
+          },
+          "left_player_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Left Player Id",
+            "type": "integer"
+          },
+          "right_player_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Right Player Id",
+            "type": "integer"
           }
         },
-        "type": "object",
         "required": [
           "left_player_id",
           "right_player_id",
           "context"
         ],
-        "title": "ComparePlayersRequest"
+        "title": "ComparePlayersRequest",
+        "type": "object"
       },
       "ComparePlayersResponse": {
         "properties": {
@@ -312,77 +34,77 @@
             "$ref": "#/components/schemas/ComparePlayersResult"
           }
         },
-        "type": "object",
         "required": [
           "meta",
           "result"
         ],
-        "title": "ComparePlayersResponse"
+        "title": "ComparePlayersResponse",
+        "type": "object"
       },
       "ComparePlayersResult": {
         "properties": {
           "left_player_id": {
-            "type": "integer",
             "exclusiveMinimum": 0.0,
-            "title": "Left Player Id"
-          },
-          "right_player_id": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
-            "title": "Right Player Id"
+            "title": "Left Player Id",
+            "type": "integer"
           },
           "metrics": {
             "additionalProperties": {
               "$ref": "#/components/schemas/MetricComparison"
             },
-            "type": "object",
-            "title": "Metrics"
+            "title": "Metrics",
+            "type": "object"
+          },
+          "right_player_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Right Player Id",
+            "type": "integer"
           },
           "summary": {
-            "type": "string",
-            "title": "Summary"
+            "title": "Summary",
+            "type": "string"
           }
         },
-        "type": "object",
         "required": [
           "left_player_id",
           "right_player_id",
           "metrics",
           "summary"
         ],
-        "title": "ComparePlayersResult"
+        "title": "ComparePlayersResult",
+        "type": "object"
       },
       "DeterministicContext": {
+        "description": "Deterministic execution contract for all stochastic endpoints.",
         "properties": {
-          "seed": {
-            "type": "integer",
-            "maximum": 4294967295.0,
-            "minimum": 0.0,
-            "title": "Seed"
-          },
-          "model_version": {
-            "type": "string",
-            "maxLength": 64,
-            "minLength": 1,
-            "pattern": "^[A-Za-z0-9._-]+$",
-            "title": "Model Version"
-          },
           "data_snapshot_id": {
-            "type": "string",
             "maxLength": 128,
             "minLength": 1,
             "pattern": "^[A-Za-z0-9._:-]+$",
-            "title": "Data Snapshot Id"
+            "title": "Data Snapshot Id",
+            "type": "string"
+          },
+          "model_version": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9._-]+$",
+            "title": "Model Version",
+            "type": "string"
+          },
+          "seed": {
+            "maximum": 4294967295.0,
+            "minimum": 0.0,
+            "title": "Seed",
+            "type": "integer"
           }
         },
-        "type": "object",
         "required": [
           "seed",
           "model_version",
           "data_snapshot_id"
         ],
         "title": "DeterministicContext",
-        "description": "Deterministic execution contract for all stochastic endpoints."
+        "type": "object"
       },
       "HTTPValidationError": {
         "properties": {
@@ -390,134 +112,85 @@
             "items": {
               "$ref": "#/components/schemas/ValidationError"
             },
-            "type": "array",
-            "title": "Detail"
+            "title": "Detail",
+            "type": "array"
           }
         },
-        "type": "object",
-        "title": "HTTPValidationError"
+        "title": "HTTPValidationError",
+        "type": "object"
       },
       "MetricComparison": {
         "properties": {
-          "left_value": {
-            "type": "number",
-            "title": "Left Value"
-          },
-          "right_value": {
-            "type": "number",
-            "title": "Right Value"
+          "better_player_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Better Player Id",
+            "type": "integer"
           },
           "delta_left_minus_right": {
-            "type": "number",
-            "title": "Delta Left Minus Right"
-          },
-          "better_player_id": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
-            "title": "Better Player Id"
+            "title": "Delta Left Minus Right",
+            "type": "number"
           },
           "direction": {
-            "type": "string",
             "enum": [
               "higher_is_better",
               "lower_is_better"
             ],
-            "title": "Direction"
+            "title": "Direction",
+            "type": "string"
+          },
+          "left_source": {
+            "enum": [
+              "real",
+              "synthetic"
+            ],
+            "title": "Left Source",
+            "type": "string"
+          },
+          "left_value": {
+            "title": "Left Value",
+            "type": "number"
+          },
+          "right_source": {
+            "enum": [
+              "real",
+              "synthetic"
+            ],
+            "title": "Right Source",
+            "type": "string"
+          },
+          "right_value": {
+            "title": "Right Value",
+            "type": "number"
           }
         },
-        "type": "object",
         "required": [
           "left_value",
           "right_value",
+          "left_source",
+          "right_source",
           "delta_left_minus_right",
           "better_player_id",
           "direction"
         ],
-        "title": "MetricComparison"
+        "title": "MetricComparison",
+        "type": "object"
       },
       "PlayByPlayEvent": {
         "properties": {
-          "play_index": {
-            "type": "integer",
-            "minimum": 1.0,
-            "title": "Play Index"
-          },
-          "inning": {
-            "type": "integer",
-            "minimum": 1.0,
-            "title": "Inning"
-          },
-          "half": {
-            "type": "string",
-            "enum": [
-              "top",
-              "bottom"
-            ],
-            "title": "Half"
-          },
-          "batting_team_id": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
-            "title": "Batting Team Id"
-          },
-          "fielding_team_id": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
-            "title": "Fielding Team Id"
-          },
-          "event": {
-            "type": "string",
-            "enum": [
-              "out",
-              "walk",
-              "single",
-              "double",
-              "triple",
-              "home_run",
-              "tiebreaker"
-            ],
-            "title": "Event"
-          },
-          "outs_before": {
-            "type": "integer",
-            "maximum": 3.0,
+          "away_score_after_play": {
             "minimum": 0.0,
-            "title": "Outs Before"
-          },
-          "outs_after": {
-            "type": "integer",
-            "maximum": 3.0,
-            "minimum": 0.0,
-            "title": "Outs After"
-          },
-          "bases_before": {
-            "type": "string",
-            "pattern": "^[01]{3}$",
-            "title": "Bases Before"
+            "title": "Away Score After Play",
+            "type": "integer"
           },
           "bases_after": {
-            "type": "string",
             "pattern": "^[01]{3}$",
-            "title": "Bases After"
+            "title": "Bases After",
+            "type": "string"
           },
-          "runs_scored_on_play": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Runs Scored On Play"
-          },
-          "home_score_after_play": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Home Score After Play"
-          },
-          "away_score_after_play": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Away Score After Play"
-          },
-          "description": {
-            "type": "string",
-            "title": "Description"
+          "bases_before": {
+            "pattern": "^[01]{3}$",
+            "title": "Bases Before",
+            "type": "string"
           },
           "batter_id": {
             "anyOf": [
@@ -540,9 +213,75 @@
               }
             ],
             "title": "Batter Name"
+          },
+          "batting_team_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Batting Team Id",
+            "type": "integer"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "event": {
+            "enum": [
+              "out",
+              "walk",
+              "single",
+              "double",
+              "triple",
+              "home_run",
+              "tiebreaker"
+            ],
+            "title": "Event",
+            "type": "string"
+          },
+          "fielding_team_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Fielding Team Id",
+            "type": "integer"
+          },
+          "half": {
+            "enum": [
+              "top",
+              "bottom"
+            ],
+            "title": "Half",
+            "type": "string"
+          },
+          "home_score_after_play": {
+            "minimum": 0.0,
+            "title": "Home Score After Play",
+            "type": "integer"
+          },
+          "inning": {
+            "minimum": 1.0,
+            "title": "Inning",
+            "type": "integer"
+          },
+          "outs_after": {
+            "maximum": 3.0,
+            "minimum": 0.0,
+            "title": "Outs After",
+            "type": "integer"
+          },
+          "outs_before": {
+            "maximum": 3.0,
+            "minimum": 0.0,
+            "title": "Outs Before",
+            "type": "integer"
+          },
+          "play_index": {
+            "minimum": 1.0,
+            "title": "Play Index",
+            "type": "integer"
+          },
+          "runs_scored_on_play": {
+            "minimum": 0.0,
+            "title": "Runs Scored On Play",
+            "type": "integer"
           }
         },
-        "type": "object",
         "required": [
           "play_index",
           "inning",
@@ -559,18 +298,30 @@
           "away_score_after_play",
           "description"
         ],
-        "title": "PlayByPlayEvent"
+        "title": "PlayByPlayEvent",
+        "type": "object"
       },
       "PlayerSummary": {
         "properties": {
-          "player_id": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
-            "title": "Player Id"
+          "bats": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bats"
           },
           "full_name": {
-            "type": "string",
-            "title": "Full Name"
+            "title": "Full Name",
+            "type": "string"
+          },
+          "player_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Player Id",
+            "type": "integer"
           },
           "primary_position": {
             "anyOf": [
@@ -582,17 +333,6 @@
               }
             ],
             "title": "Primary Position"
-          },
-          "bats": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Bats"
           },
           "throws": {
             "anyOf": [
@@ -606,36 +346,36 @@
             "title": "Throws"
           }
         },
-        "type": "object",
         "required": [
           "player_id",
           "full_name"
         ],
-        "title": "PlayerSummary"
+        "title": "PlayerSummary",
+        "type": "object"
       },
       "PredictGameRequest": {
         "properties": {
-          "home_team_id": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
-            "title": "Home Team Id"
-          },
           "away_team_id": {
-            "type": "integer",
             "exclusiveMinimum": 0.0,
-            "title": "Away Team Id"
+            "title": "Away Team Id",
+            "type": "integer"
           },
           "context": {
             "$ref": "#/components/schemas/DeterministicContext"
+          },
+          "home_team_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Home Team Id",
+            "type": "integer"
           }
         },
-        "type": "object",
         "required": [
           "home_team_id",
           "away_team_id",
           "context"
         ],
-        "title": "PredictGameRequest"
+        "title": "PredictGameRequest",
+        "type": "object"
       },
       "PredictGameResponse": {
         "properties": {
@@ -646,52 +386,51 @@
             "$ref": "#/components/schemas/PredictGameResult"
           }
         },
-        "type": "object",
         "required": [
           "meta",
           "result"
         ],
-        "title": "PredictGameResponse"
+        "title": "PredictGameResponse",
+        "type": "object"
       },
       "PredictGameResult": {
         "properties": {
-          "home_team_id": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
-            "title": "Home Team Id"
-          },
           "away_team_id": {
-            "type": "integer",
             "exclusiveMinimum": 0.0,
-            "title": "Away Team Id"
-          },
-          "home_win_probability": {
-            "type": "number",
-            "maximum": 1.0,
-            "minimum": 0.0,
-            "title": "Home Win Probability"
+            "title": "Away Team Id",
+            "type": "integer"
           },
           "away_win_probability": {
-            "type": "number",
             "maximum": 1.0,
             "minimum": 0.0,
-            "title": "Away Win Probability"
+            "title": "Away Win Probability",
+            "type": "number"
           },
           "confidence": {
-            "type": "number",
             "maximum": 1.0,
             "minimum": 0.0,
-            "title": "Confidence"
+            "title": "Confidence",
+            "type": "number"
           },
           "explanation": {
             "items": {
               "type": "string"
             },
-            "type": "array",
-            "title": "Explanation"
+            "title": "Explanation",
+            "type": "array"
+          },
+          "home_team_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Home Team Id",
+            "type": "integer"
+          },
+          "home_win_probability": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Home Win Probability",
+            "type": "number"
           }
         },
-        "type": "object",
         "required": [
           "home_team_id",
           "away_team_id",
@@ -700,24 +439,25 @@
           "confidence",
           "explanation"
         ],
-        "title": "PredictGameResult"
+        "title": "PredictGameResult",
+        "type": "object"
       },
       "ResponseMeta": {
         "properties": {
-          "generated_at_utc": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Generated At Utc"
-          },
           "context": {
             "$ref": "#/components/schemas/DeterministicContext"
+          },
+          "generated_at_utc": {
+            "format": "date-time",
+            "title": "Generated At Utc",
+            "type": "string"
           }
         },
-        "type": "object",
         "required": [
           "context"
         ],
-        "title": "ResponseMeta"
+        "title": "ResponseMeta",
+        "type": "object"
       },
       "SimulateGamePlayByPlayResponse": {
         "properties": {
@@ -728,79 +468,79 @@
             "$ref": "#/components/schemas/SimulateGamePlayByPlayResult"
           }
         },
-        "type": "object",
         "required": [
           "meta",
           "result"
         ],
-        "title": "SimulateGamePlayByPlayResponse"
+        "title": "SimulateGamePlayByPlayResponse",
+        "type": "object"
       },
       "SimulateGamePlayByPlayResult": {
         "properties": {
-          "summary": {
-            "$ref": "#/components/schemas/SimulateGameResult"
+          "line_score_away": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Line Score Away",
+            "type": "array"
           },
           "line_score_home": {
             "items": {
               "type": "integer"
             },
-            "type": "array",
-            "title": "Line Score Home"
-          },
-          "line_score_away": {
-            "items": {
-              "type": "integer"
-            },
-            "type": "array",
-            "title": "Line Score Away"
+            "title": "Line Score Home",
+            "type": "array"
           },
           "plays": {
             "items": {
               "$ref": "#/components/schemas/PlayByPlayEvent"
             },
-            "type": "array",
-            "title": "Plays"
+            "title": "Plays",
+            "type": "array"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/SimulateGameResult"
           }
         },
-        "type": "object",
         "required": [
           "summary",
           "line_score_home",
           "line_score_away",
           "plays"
         ],
-        "title": "SimulateGamePlayByPlayResult"
+        "title": "SimulateGamePlayByPlayResult",
+        "type": "object"
       },
       "SimulateGameRequest": {
         "properties": {
-          "home_team_id": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
-            "title": "Home Team Id"
-          },
           "away_team_id": {
-            "type": "integer",
             "exclusiveMinimum": 0.0,
-            "title": "Away Team Id"
-          },
-          "innings": {
-            "type": "integer",
-            "maximum": 20.0,
-            "minimum": 9.0,
-            "title": "Innings",
-            "default": 9
+            "title": "Away Team Id",
+            "type": "integer"
           },
           "context": {
             "$ref": "#/components/schemas/DeterministicContext"
+          },
+          "home_team_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Home Team Id",
+            "type": "integer"
+          },
+          "innings": {
+            "default": 9,
+            "maximum": 20.0,
+            "minimum": 9.0,
+            "title": "Innings",
+            "type": "integer"
           }
         },
-        "type": "object",
         "required": [
           "home_team_id",
           "away_team_id",
           "context"
         ],
-        "title": "SimulateGameRequest"
+        "title": "SimulateGameRequest",
+        "type": "object"
       },
       "SimulateGameResponse": {
         "properties": {
@@ -811,55 +551,54 @@
             "$ref": "#/components/schemas/SimulateGameResult"
           }
         },
-        "type": "object",
         "required": [
           "meta",
           "result"
         ],
-        "title": "SimulateGameResponse"
+        "title": "SimulateGameResponse",
+        "type": "object"
       },
       "SimulateGameResult": {
         "properties": {
-          "home_team_id": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
-            "title": "Home Team Id"
-          },
-          "away_team_id": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
-            "title": "Away Team Id"
-          },
-          "innings_played": {
-            "type": "integer",
-            "maximum": 21.0,
-            "minimum": 9.0,
-            "title": "Innings Played"
-          },
-          "home_score": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Home Score"
-          },
-          "away_score": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Away Score"
-          },
-          "winner_team_id": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
-            "title": "Winner Team Id"
-          },
           "assumptions": {
             "items": {
               "type": "string"
             },
-            "type": "array",
-            "title": "Assumptions"
+            "title": "Assumptions",
+            "type": "array"
+          },
+          "away_score": {
+            "minimum": 0.0,
+            "title": "Away Score",
+            "type": "integer"
+          },
+          "away_team_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Away Team Id",
+            "type": "integer"
+          },
+          "home_score": {
+            "minimum": 0.0,
+            "title": "Home Score",
+            "type": "integer"
+          },
+          "home_team_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Home Team Id",
+            "type": "integer"
+          },
+          "innings_played": {
+            "maximum": 21.0,
+            "minimum": 9.0,
+            "title": "Innings Played",
+            "type": "integer"
+          },
+          "winner_team_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Winner Team Id",
+            "type": "integer"
           }
         },
-        "type": "object",
         "required": [
           "home_team_id",
           "away_team_id",
@@ -869,7 +608,8 @@
           "winner_team_id",
           "assumptions"
         ],
-        "title": "SimulateGameResult"
+        "title": "SimulateGameResult",
+        "type": "object"
       },
       "TeamListResponse": {
         "properties": {
@@ -877,49 +617,40 @@
             "items": {
               "$ref": "#/components/schemas/TeamSummary"
             },
-            "type": "array",
-            "title": "Teams"
+            "title": "Teams",
+            "type": "array"
           }
         },
-        "type": "object",
         "required": [
           "teams"
         ],
-        "title": "TeamListResponse"
+        "title": "TeamListResponse",
+        "type": "object"
       },
       "TeamRosterResponse": {
         "properties": {
-          "team_id": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
-            "title": "Team Id"
-          },
           "players": {
             "items": {
               "$ref": "#/components/schemas/PlayerSummary"
             },
-            "type": "array",
-            "title": "Players"
+            "title": "Players",
+            "type": "array"
+          },
+          "team_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Team Id",
+            "type": "integer"
           }
         },
-        "type": "object",
         "required": [
           "team_id",
           "players"
         ],
-        "title": "TeamRosterResponse"
+        "title": "TeamRosterResponse",
+        "type": "object"
       },
       "TeamSummary": {
         "properties": {
-          "team_id": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
-            "title": "Team Id"
-          },
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
           "abbreviation": {
             "anyOf": [
               {
@@ -930,6 +661,17 @@
               }
             ],
             "title": "Abbreviation"
+          },
+          "division_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Division Name"
           },
           "league_name": {
             "anyOf": [
@@ -942,27 +684,32 @@
             ],
             "title": "League Name"
           },
-          "division_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Division Name"
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "team_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Team Id",
+            "type": "integer"
           }
         },
-        "type": "object",
         "required": [
           "team_id",
           "name"
         ],
-        "title": "TeamSummary"
+        "title": "TeamSummary",
+        "type": "object"
       },
       "ValidationError": {
         "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
           "loc": {
             "items": {
               "anyOf": [
@@ -974,32 +721,303 @@
                 }
               ]
             },
-            "type": "array",
-            "title": "Location"
+            "title": "Location",
+            "type": "array"
           },
           "msg": {
-            "type": "string",
-            "title": "Message"
+            "title": "Message",
+            "type": "string"
           },
           "type": {
-            "type": "string",
-            "title": "Error Type"
-          },
-          "input": {
-            "title": "Input"
-          },
-          "ctx": {
-            "type": "object",
-            "title": "Context"
+            "title": "Error Type",
+            "type": "string"
           }
         },
-        "type": "object",
         "required": [
           "loc",
           "msg",
           "type"
         ],
-        "title": "ValidationError"
+        "title": "ValidationError",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "Deterministic sabermetrics-driven MLB simulation API.",
+    "title": "baseball-sim",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/compare/players": {
+      "post": {
+        "operationId": "compare_players_endpoint_api_v1_compare_players_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ComparePlayersRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComparePlayersResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Compare Players Endpoint"
+      }
+    },
+    "/api/v1/health": {
+      "get": {
+        "operationId": "health_api_v1_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Health Api V1 Health Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health"
+      }
+    },
+    "/api/v1/players/{player_id}": {
+      "get": {
+        "operationId": "get_player_endpoint_api_v1_players__player_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "player_id",
+            "required": true,
+            "schema": {
+              "title": "Player Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayerSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Player Endpoint"
+      }
+    },
+    "/api/v1/predict/game": {
+      "post": {
+        "operationId": "predict_game_endpoint_api_v1_predict_game_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PredictGameRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PredictGameResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Predict Game Endpoint"
+      }
+    },
+    "/api/v1/simulate/game": {
+      "post": {
+        "operationId": "simulate_game_endpoint_api_v1_simulate_game_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimulateGameRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimulateGameResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Simulate Game Endpoint"
+      }
+    },
+    "/api/v1/simulate/game/play-by-play": {
+      "post": {
+        "operationId": "simulate_game_play_by_play_endpoint_api_v1_simulate_game_play_by_play_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimulateGameRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimulateGamePlayByPlayResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Simulate Game Play By Play Endpoint"
+      }
+    },
+    "/api/v1/teams": {
+      "get": {
+        "operationId": "list_teams_endpoint_api_v1_teams_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Teams Endpoint"
+      }
+    },
+    "/api/v1/teams/{team_id}/roster": {
+      "get": {
+        "operationId": "get_team_roster_endpoint_api_v1_teams__team_id__roster_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "team_id",
+            "required": true,
+            "schema": {
+              "title": "Team Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamRosterResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Team Roster Endpoint"
       }
     }
   }

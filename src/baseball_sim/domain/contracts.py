@@ -64,9 +64,16 @@ class ComparePlayersRequest(BaseModel):
     context: DeterministicContext
 
 
+#: Whether a reported value was computed from ingested data or is a seeded
+#: placeholder. Exposed per metric so a client can visibly distinguish the two.
+MetricSource = Literal["real", "synthetic"]
+
+
 class MetricComparison(BaseModel):
     left_value: float
     right_value: float
+    left_source: MetricSource
+    right_source: MetricSource
     delta_left_minus_right: float
     better_player_id: PositiveInt
     direction: Literal["higher_is_better", "lower_is_better"]

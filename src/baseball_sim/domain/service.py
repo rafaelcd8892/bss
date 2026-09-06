@@ -84,6 +84,8 @@ def compare_players(
         comparisons[name] = MetricComparison(
             left_value=left_value,
             right_value=right_value,
+            left_source=left_rating.sources[name],
+            right_source=right_rating.sources[name],
             delta_left_minus_right=delta,
             better_player_id=better_player_id,
             direction=spec.direction,

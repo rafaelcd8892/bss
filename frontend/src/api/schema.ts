@@ -4,6 +4,23 @@
  */
 
 export interface paths {
+    "/api/v1/compare/players": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Compare Players Endpoint */
+        post: operations["compare_players_endpoint_api_v1_compare_players_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health": {
         parameters: {
             query?: never;
@@ -13,40 +30,6 @@ export interface paths {
         };
         /** Health */
         get: operations["health_api_v1_health_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/teams": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Teams Endpoint */
-        get: operations["list_teams_endpoint_api_v1_teams_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/teams/{team_id}/roster": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Team Roster Endpoint */
-        get: operations["get_team_roster_endpoint_api_v1_teams__team_id__roster_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -72,7 +55,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/compare/players": {
+    "/api/v1/predict/game": {
         parameters: {
             query?: never;
             header?: never;
@@ -81,8 +64,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Compare Players Endpoint */
-        post: operations["compare_players_endpoint_api_v1_compare_players_post"];
+        /** Predict Game Endpoint */
+        post: operations["predict_game_endpoint_api_v1_predict_game_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -123,17 +106,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/predict/game": {
+    "/api/v1/teams": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** List Teams Endpoint */
+        get: operations["list_teams_endpoint_api_v1_teams_get"];
         put?: never;
-        /** Predict Game Endpoint */
-        post: operations["predict_game_endpoint_api_v1_predict_game_post"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/teams/{team_id}/roster": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Team Roster Endpoint */
+        get: operations["get_team_roster_endpoint_api_v1_teams__team_id__roster_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -146,11 +146,11 @@ export interface components {
     schemas: {
         /** ComparePlayersRequest */
         ComparePlayersRequest: {
+            context: components["schemas"]["DeterministicContext"];
             /** Left Player Id */
             left_player_id: number;
             /** Right Player Id */
             right_player_id: number;
-            context: components["schemas"]["DeterministicContext"];
         };
         /** ComparePlayersResponse */
         ComparePlayersResponse: {
@@ -161,12 +161,12 @@ export interface components {
         ComparePlayersResult: {
             /** Left Player Id */
             left_player_id: number;
-            /** Right Player Id */
-            right_player_id: number;
             /** Metrics */
             metrics: {
                 [key: string]: components["schemas"]["MetricComparison"];
             };
+            /** Right Player Id */
+            right_player_id: number;
             /** Summary */
             summary: string;
         };
@@ -175,12 +175,12 @@ export interface components {
          * @description Deterministic execution contract for all stochastic endpoints.
          */
         DeterministicContext: {
-            /** Seed */
-            seed: number;
-            /** Model Version */
-            model_version: string;
             /** Data Snapshot Id */
             data_snapshot_id: string;
+            /** Model Version */
+            model_version: string;
+            /** Seed */
+            seed: number;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -189,81 +189,91 @@ export interface components {
         };
         /** MetricComparison */
         MetricComparison: {
-            /** Left Value */
-            left_value: number;
-            /** Right Value */
-            right_value: number;
-            /** Delta Left Minus Right */
-            delta_left_minus_right: number;
             /** Better Player Id */
             better_player_id: number;
+            /** Delta Left Minus Right */
+            delta_left_minus_right: number;
             /**
              * Direction
              * @enum {string}
              */
             direction: "higher_is_better" | "lower_is_better";
+            /**
+             * Left Source
+             * @enum {string}
+             */
+            left_source: "real" | "synthetic";
+            /** Left Value */
+            left_value: number;
+            /**
+             * Right Source
+             * @enum {string}
+             */
+            right_source: "real" | "synthetic";
+            /** Right Value */
+            right_value: number;
         };
         /** PlayByPlayEvent */
         PlayByPlayEvent: {
-            /** Play Index */
-            play_index: number;
-            /** Inning */
-            inning: number;
-            /**
-             * Half
-             * @enum {string}
-             */
-            half: "top" | "bottom";
+            /** Away Score After Play */
+            away_score_after_play: number;
+            /** Bases After */
+            bases_after: string;
+            /** Bases Before */
+            bases_before: string;
+            /** Batter Id */
+            batter_id?: number | null;
+            /** Batter Name */
+            batter_name?: string | null;
             /** Batting Team Id */
             batting_team_id: number;
-            /** Fielding Team Id */
-            fielding_team_id: number;
+            /** Description */
+            description: string;
             /**
              * Event
              * @enum {string}
              */
             event: "out" | "walk" | "single" | "double" | "triple" | "home_run" | "tiebreaker";
-            /** Outs Before */
-            outs_before: number;
-            /** Outs After */
-            outs_after: number;
-            /** Bases Before */
-            bases_before: string;
-            /** Bases After */
-            bases_after: string;
-            /** Runs Scored On Play */
-            runs_scored_on_play: number;
+            /** Fielding Team Id */
+            fielding_team_id: number;
+            /**
+             * Half
+             * @enum {string}
+             */
+            half: "top" | "bottom";
             /** Home Score After Play */
             home_score_after_play: number;
-            /** Away Score After Play */
-            away_score_after_play: number;
-            /** Description */
-            description: string;
-            /** Batter Id */
-            batter_id?: number | null;
-            /** Batter Name */
-            batter_name?: string | null;
+            /** Inning */
+            inning: number;
+            /** Outs After */
+            outs_after: number;
+            /** Outs Before */
+            outs_before: number;
+            /** Play Index */
+            play_index: number;
+            /** Runs Scored On Play */
+            runs_scored_on_play: number;
         };
         /** PlayerSummary */
         PlayerSummary: {
-            /** Player Id */
-            player_id: number;
-            /** Full Name */
-            full_name: string;
-            /** Primary Position */
-            primary_position?: string | null;
             /** Bats */
             bats?: string | null;
+            /** Full Name */
+            full_name: string;
+            /** Player Id */
+            player_id: number;
+            /** Primary Position */
+            primary_position?: string | null;
             /** Throws */
             throws?: string | null;
         };
         /** PredictGameRequest */
         PredictGameRequest: {
-            /** Home Team Id */
-            home_team_id: number;
             /** Away Team Id */
             away_team_id: number;
             context: components["schemas"]["DeterministicContext"];
+            /** Home Team Id */
+            home_team_id: number;
         };
         /** PredictGameResponse */
         PredictGameResponse: {
@@ -272,27 +282,27 @@ export interface components {
         };
         /** PredictGameResult */
         PredictGameResult: {
-            /** Home Team Id */
-            home_team_id: number;
             /** Away Team Id */
             away_team_id: number;
-            /** Home Win Probability */
-            home_win_probability: number;
             /** Away Win Probability */
             away_win_probability: number;
             /** Confidence */
             confidence: number;
             /** Explanation */
             explanation: string[];
+            /** Home Team Id */
+            home_team_id: number;
+            /** Home Win Probability */
+            home_win_probability: number;
         };
         /** ResponseMeta */
         ResponseMeta: {
+            context: components["schemas"]["DeterministicContext"];
             /**
              * Generated At Utc
              * Format: date-time
              */
             generated_at_utc?: string;
-            context: components["schemas"]["DeterministicContext"];
         };
         /** SimulateGamePlayByPlayResponse */
         SimulateGamePlayByPlayResponse: {
@@ -301,26 +311,26 @@ export interface components {
         };
         /** SimulateGamePlayByPlayResult */
         SimulateGamePlayByPlayResult: {
-            summary: components["schemas"]["SimulateGameResult"];
-            /** Line Score Home */
-            line_score_home: number[];
             /** Line Score Away */
             line_score_away: number[];
+            /** Line Score Home */
+            line_score_home: number[];
             /** Plays */
             plays: components["schemas"]["PlayByPlayEvent"][];
+            summary: components["schemas"]["SimulateGameResult"];
         };
         /** SimulateGameRequest */
         SimulateGameRequest: {
-            /** Home Team Id */
-            home_team_id: number;
             /** Away Team Id */
             away_team_id: number;
+            context: components["schemas"]["DeterministicContext"];
+            /** Home Team Id */
+            home_team_id: number;
             /**
              * Innings
              * @default 9
              */
             innings: number;
-            context: components["schemas"]["DeterministicContext"];
         };
         /** SimulateGameResponse */
         SimulateGameResponse: {
@@ -329,20 +339,20 @@ export interface components {
         };
         /** SimulateGameResult */
         SimulateGameResult: {
-            /** Home Team Id */
-            home_team_id: number;
-            /** Away Team Id */
-            away_team_id: number;
-            /** Innings Played */
-            innings_played: number;
-            /** Home Score */
-            home_score: number;
-            /** Away Score */
-            away_score: number;
-            /** Winner Team Id */
-            winner_team_id: number;
             /** Assumptions */
             assumptions: string[];
+            /** Away Score */
+            away_score: number;
+            /** Away Team Id */
+            away_team_id: number;
+            /** Home Score */
+            home_score: number;
+            /** Home Team Id */
+            home_team_id: number;
+            /** Innings Played */
+            innings_played: number;
+            /** Winner Team Id */
+            winner_team_id: number;
         };
         /** TeamListResponse */
         TeamListResponse: {
@@ -351,36 +361,36 @@ export interface components {
         };
         /** TeamRosterResponse */
         TeamRosterResponse: {
-            /** Team Id */
-            team_id: number;
             /** Players */
             players: components["schemas"]["PlayerSummary"][];
+            /** Team Id */
+            team_id: number;
         };
         /** TeamSummary */
         TeamSummary: {
-            /** Team Id */
-            team_id: number;
-            /** Name */
-            name: string;
             /** Abbreviation */
             abbreviation?: string | null;
-            /** League Name */
-            league_name?: string | null;
             /** Division Name */
             division_name?: string | null;
+            /** League Name */
+            league_name?: string | null;
+            /** Name */
+            name: string;
+            /** Team Id */
+            team_id: number;
         };
         /** ValidationError */
         ValidationError: {
+            /** Context */
+            ctx?: Record<string, never>;
+            /** Input */
+            input?: unknown;
             /** Location */
             loc: (string | number)[];
             /** Message */
             msg: string;
             /** Error Type */
             type: string;
-            /** Input */
-            input?: unknown;
-            /** Context */
-            ctx?: Record<string, never>;
         };
     };
     responses: never;
@@ -391,6 +401,39 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    compare_players_endpoint_api_v1_compare_players_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ComparePlayersRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComparePlayersResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     health_api_v1_health_get: {
         parameters: {
             query?: never;
@@ -409,57 +452,6 @@ export interface operations {
                     "application/json": {
                         [key: string]: string;
                     };
-                };
-            };
-        };
-    };
-    list_teams_endpoint_api_v1_teams_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TeamListResponse"];
-                };
-            };
-        };
-    };
-    get_team_roster_endpoint_api_v1_teams__team_id__roster_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                team_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TeamRosterResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -495,7 +487,7 @@ export interface operations {
             };
         };
     };
-    compare_players_endpoint_api_v1_compare_players_post: {
+    predict_game_endpoint_api_v1_predict_game_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -504,7 +496,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ComparePlayersRequest"];
+                "application/json": components["schemas"]["PredictGameRequest"];
             };
         };
         responses: {
@@ -514,7 +506,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ComparePlayersResponse"];
+                    "application/json": components["schemas"]["PredictGameResponse"];
                 };
             };
             /** @description Validation Error */
@@ -594,18 +586,14 @@ export interface operations {
             };
         };
     };
-    predict_game_endpoint_api_v1_predict_game_post: {
+    list_teams_endpoint_api_v1_teams_get: {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PredictGameRequest"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -613,7 +601,29 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PredictGameResponse"];
+                    "application/json": components["schemas"]["TeamListResponse"];
+                };
+            };
+        };
+    };
+    get_team_roster_endpoint_api_v1_teams__team_id__roster_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                team_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeamRosterResponse"];
                 };
             };
             /** @description Validation Error */

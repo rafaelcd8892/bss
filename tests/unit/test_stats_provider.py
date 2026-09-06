@@ -92,7 +92,7 @@ def test_stat_line_provider_uses_real_pitching_metrics() -> None:
     )
 
 
-def test_two_way_player_is_fully_real() -> None:
+def test_two_way_player_has_real_hitting_and_pitching_metrics() -> None:
     provider = StatLineStatsProvider(
         batting_lines={660: ELITE_BAT},
         pitching_lines={660: ACE_ARM},
@@ -100,7 +100,17 @@ def test_two_way_player_is_fully_real() -> None:
         team_pitching={},
     )
     rating = provider.player_rating(player_id=660, seed=1)
-    assert rating.source == "real"
+
+    assert rating.sources == {
+        "woba": "real",
+        "wrc_plus": "real",
+        "fip": "real",
+        "k_bb_ratio": "real",
+        # Statcast is not ingested, so expected wOBA stays a seeded placeholder.
+        "xwoba": "synthetic",
+    }
+    # Not "real": one synthetic metric must not hide inside a fully-real label.
+    assert rating.source == "real_partial"
 
 
 def test_unknown_player_falls_back_to_synthetic() -> None:
@@ -163,3 +173,27 @@ def test_layered_provider_prefers_real_then_synthetic() -> None:
     uncovered = layered.player_rating(player_id=999, seed=1234)
     assert covered.source == "real_partial"
     assert uncovered.source == "synthetic"
+
+
+def test_metric_sources_are_reported_per_metric() -> None:
+    provider = StatLineStatsProvider(
+        batting_lines={100: ELITE_BAT},
+        pitching_lines={},
+        team_batting={},
+        team_pitching={},
+    )
+    rating = provider.player_rating(player_id=100, seed=1234)
+
+    assert rating.sources["woba"] == "real"
+    assert rating.sources["wrc_plus"] == "real"
+    # A pure hitter has no innings, so the pitching metrics stay seeded.
+    assert rating.sources["fip"] == "synthetic"
+    assert rating.sources["k_bb_ratio"] == "synthetic"
+    # Every metric reported has a provenance entry.
+    assert set(rating.sources) == set(rating.metrics)
+
+
+def test_synthetic_rating_marks_every_metric_synthetic() -> None:
+    rating = SyntheticStatsProvider().player_rating(player_id=592450, seed=1234)
+    assert set(rating.sources.values()) == {"synthetic"}
+    assert rating.source == "synthetic"

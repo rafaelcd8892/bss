@@ -120,3 +120,24 @@ def test_simulate_default_provider_matches_legacy() -> None:
     default_result = simulate_game(request)
     # No provider == seed-only synthesis, with no extra provider assumption.
     assert not any("stats provider" in assumption for assumption in default_result.assumptions)
+
+
+def test_compare_reports_provenance_per_metric() -> None:
+    request = ComparePlayersRequest(left_player_id=10, right_player_id=20, context=_context())
+    result = compare_players(request, provider=_provider())
+
+    # Real where the data supports it, seeded placeholder where it does not — and the
+    # client can tell the difference without parsing the summary string.
+    assert result.metrics["woba"].left_source == "real"
+    assert result.metrics["wrc_plus"].left_source == "real"
+    assert result.metrics["fip"].left_source == "synthetic"
+    assert result.metrics["xwoba"].left_source == "synthetic"
+
+
+def test_compare_without_data_reports_all_synthetic() -> None:
+    request = ComparePlayersRequest(
+        left_player_id=592450, right_player_id=543037, context=_context()
+    )
+    result = compare_players(request)
+    assert all(m.left_source == "synthetic" for m in result.metrics.values())
+    assert all(m.right_source == "synthetic" for m in result.metrics.values())
