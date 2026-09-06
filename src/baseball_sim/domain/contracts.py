@@ -86,6 +86,9 @@ class TeamProfileResponse(BaseModel):
     team_fip: float | None = None
     batters_counted: int = Field(..., ge=0)
     pitchers_counted: int = Field(..., ge=0)
+    #: Fielding splits behind ``range_factor``. Zero means the factor is the neutral
+    #: 0.5 placeholder rather than a measurement.
+    fielders_counted: int = Field(default=0, ge=0)
 
 
 class PlayerSeasonLine(BaseModel):

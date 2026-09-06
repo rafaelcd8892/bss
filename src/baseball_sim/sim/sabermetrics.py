@@ -245,3 +245,43 @@ def compute_ground_ball_rate(line: RawPitchingLine) -> float | None:
     """
 
     return _rate(line.ground_outs, line.ground_outs + line.air_outs)
+
+
+@dataclass(frozen=True)
+class RawFieldingLine:
+    """Season fielding stats for one player at one position.
+
+    The API reports a split per position played, so a utility player has several of
+    these. Positions with no innings (a designated hitter's entry) are not fielding.
+    """
+
+    position: str
+    innings: float
+    put_outs: int
+    assists: int
+    errors: int
+    chances: int = 0
+    double_plays: int = 0
+    games: int = 0
+    games_started: int = 0
+
+    @property
+    def plays_made(self) -> int:
+        return self.put_outs + self.assists
+
+
+def compute_range_factor_per_nine(line: RawFieldingLine) -> float | None:
+    """Plays made per nine innings at a position.
+
+    Only comparable *within* a position: a first baseman clears 7 and a left fielder
+    barely 2, because the position dictates how many balls arrive. Comparing teams on
+    a raw average of this would measure their positional mix, not their defense.
+    """
+
+    return _rate(line.plays_made * 9.0, line.innings)
+
+
+def compute_fielding_percentage(line: RawFieldingLine) -> float | None:
+    """Share of chances handled cleanly."""
+
+    return _rate(line.plays_made, line.plays_made + line.errors)

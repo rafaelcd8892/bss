@@ -331,14 +331,20 @@ Cheaper than first assumed: fielding comes from the same `/people/{id}/stats` en
 with `group=fielding`, returning one split per position played, including
 `rangeFactorPer9Inn`, assists, putouts, errors, chances, fielding pct and innings.
 
-- [ ] Ingest the fielding group; migration for the fielding columns.
-- [ ] Map it onto `range_factor` with a documented league range, replacing the neutral
-      0.5 every club carries today.
+- [x] Ingest the fielding group; migration 0006 adds `player_season_fielding`, keyed by
+      position because the API returns one split per position played.
+- [x] Map it onto `range_factor` as a league-relative, position-normalized rate
+      (ADR-021), replacing the neutral 0.5 every club carried.
+- [x] Surface the column in the Teams table, showing a dash where no fielding was
+      ingested rather than the neutral placeholder.
+- [x] Collapse season reads to the newest snapshot (ADR-022) — found while re-ingesting:
+      the provider was summing every snapshot into each club's aggregate.
 - [ ] Pitcher attribution in the simulator, alongside the same defensive model.
-- [ ] Surface the column in the Teams table, which currently omits it as a constant.
 
-Done when: `range_factor` varies by club, determinism goldens are refreshed
-deliberately, and the Teams table shows it.
+Done when: `range_factor` varies by club, and the Teams table shows it. On real 2026
+data it spreads 0.311–0.768 across thirty distinct clubs. The goldens needed no
+refresh: the seeded path builds profiles from hashes and never reads these lines, so
+only Postgres-served runs move — the plan's assumption there was wrong, not the work.
 
 ### Step 6 — Statcast expected stats
 - [ ] Baseball Savant ingestion (a genuinely separate source per ADR-003), including a

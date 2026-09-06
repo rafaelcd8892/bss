@@ -6,15 +6,23 @@ import { Card } from "../../components/Card";
 import { teamAccent, teamLabel } from "../../teams";
 import { useTeamProfiles } from "./useTeamProfiles";
 
-/** Columns the league table can sort on. `range_factor` is omitted on purpose: it is
- *  a constant 0.5 until fielding data is ingested, so a column would be pure noise. */
+/** Columns the league table can sort on, in the simulator's own factor order. */
 const FACTOR_COLUMNS = [
   { key: "offense", label: "off", hint: "Offense, from team wOBA" },
   { key: "discipline", label: "disc", hint: "Walk rate" },
   { key: "power", label: "pow", hint: "Isolated power" },
   { key: "speed", label: "spd", hint: "Stolen-base rate" },
-  { key: "prevention", label: "prev", hint: "Run prevention, from team FIP (inverted)" },
+  {
+    key: "prevention",
+    label: "prev",
+    hint: "Run prevention, from team FIP (inverted)",
+  },
   { key: "command", label: "cmd", hint: "Team strikeout-to-walk ratio" },
+  {
+    key: "range_factor",
+    label: "rng",
+    hint: "Fielding range: plays made against what the league makes at the same positions",
+  },
 ] as const;
 
 type FactorKey = (typeof FACTOR_COLUMNS)[number]["key"];
@@ -50,11 +58,7 @@ export function TeamsView() {
         // lower number is the better one. Clicking the same column again flips it.
         next.set(
           "dir",
-          sameColumn
-            ? currentDirection === "desc"
-              ? "asc"
-              : "desc"
-            : bestFirstDirection(key),
+          sameColumn ? (currentDirection === "desc" ? "asc" : "desc") : bestFirstDirection(key),
         );
         return next;
       },
@@ -141,10 +145,12 @@ export function TeamsView() {
       </Card>
 
       <p className="px-1 text-[11px] leading-relaxed text-faint">
-        Factors are league-relative on a 0–1 scale, so 0.5 is roughly average. Fielding range
-        is held at a neutral 0.5 for every club because fielding data is not ingested yet, so
-        it is left out of this table rather than shown as a meaningless constant.
-        {synthetic > 0 && ` ${synthetic} club(s) have no ingested stats and fall back to seeded values.`}
+        Factors are league-relative on a 0–1 scale, so 0.5 is roughly average. Range compares each
+        club's plays made per nine innings against the league at the same positions, so it reflects
+        defense rather than which positions a club happens to field; a dash means no fielding was
+        ingested for that club.
+        {synthetic > 0 &&
+          ` ${synthetic} club(s) have no ingested stats and fall back to seeded values.`}
       </p>
     </div>
   );
@@ -191,7 +197,9 @@ function SortHeader({
 function TeamRow({ team, dark }: { team: TeamProfile; dark: boolean }) {
   const label = teamLabel(team.team_id);
   const accent = teamAccent(team.team_id, dark);
-  const counted = `${team.batters_counted} batting and ${team.pitchers_counted} pitching lines`;
+  const counted =
+    `${team.batters_counted} batting, ${team.pitchers_counted} pitching` +
+    ` and ${team.fielders_counted} fielding lines`;
 
   return (
     <tr className="border-t border-line" title={`${label.name} — built from ${counted}`}>
@@ -217,14 +225,32 @@ function TeamRow({ team, dark }: { team: TeamProfile; dark: boolean }) {
         {team.team_fip !== null && team.team_fip !== undefined ? team.team_fip.toFixed(2) : "—"}
       </td>
       {FACTOR_COLUMNS.map((column) => (
-        <FactorCell key={column.key} value={team.factors[column.key]} accent={accent} />
+        <FactorCell
+          key={column.key}
+          value={team.factors[column.key]}
+          accent={accent}
+          // Range without fielding lines is the neutral placeholder, not a
+          // measurement, so the cell stays empty rather than reading 0.50.
+          measured={column.key !== "range_factor" || team.fielders_counted > 0}
+        />
       ))}
     </tr>
   );
 }
 
 /** The number plus a bar behind it, so a column can be scanned at a glance. */
-function FactorCell({ value, accent }: { value: number; accent: string }) {
+function FactorCell({
+  value,
+  accent,
+  measured = true,
+}: {
+  value: number;
+  accent: string;
+  measured?: boolean;
+}) {
+  if (!measured) {
+    return <td className="px-2 py-1.5 text-right font-mono text-xs text-faint">—</td>;
+  }
   return (
     <td className="px-2 py-1.5">
       <div className="relative flex h-5 items-center justify-end">

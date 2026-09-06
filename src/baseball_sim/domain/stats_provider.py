@@ -29,6 +29,7 @@ from baseball_sim.sim.sabermetrics import (
     DEFAULT_WOBA_WEIGHTS,
     FipConstants,
     RawBattingLine,
+    RawFieldingLine,
     RawPitchingLine,
     WobaWeights,
     compute_fip,
@@ -130,6 +131,9 @@ class StatLineStatsProvider:
     pitcher contributes real ``fip`` and ``k_bb_ratio``. Metrics not derivable from a
     player's data (e.g. a hitter's FIP, or ``xwoba`` which needs Statcast) are filled
     from ``fallback`` and reported as ``synthetic`` in :attr:`PlayerRating.sources`.
+
+    Fielding lines feed the team profile's ``range_factor`` only; they say nothing
+    about the five compare metrics.
     """
 
     def __init__(
@@ -139,6 +143,8 @@ class StatLineStatsProvider:
         pitching_lines: Mapping[int, RawPitchingLine],
         team_batting: Mapping[int, Sequence[RawBattingLine]],
         team_pitching: Mapping[int, Sequence[RawPitchingLine]],
+        team_fielding: Mapping[int, Sequence[RawFieldingLine]] | None = None,
+        league_range_baselines: Mapping[str, float] | None = None,
         fallback: StatsProvider | None = None,
         weights: WobaWeights = DEFAULT_WOBA_WEIGHTS,
         fip_constants: FipConstants = DEFAULT_FIP_CONSTANTS,
@@ -147,6 +153,10 @@ class StatLineStatsProvider:
         self._pitching = dict(pitching_lines)
         self._team_batting = dict(team_batting)
         self._team_pitching = dict(team_pitching)
+        self._team_fielding = dict(team_fielding or {})
+        self._league_range_baselines = (
+            dict(league_range_baselines) if league_range_baselines else None
+        )
         self._fallback: StatsProvider = (
             fallback if fallback is not None else SyntheticStatsProvider()
         )
@@ -194,6 +204,8 @@ class StatLineStatsProvider:
         profile = team_profile_from_stats(
             batting_lines=self._team_batting.get(team_id, ()),
             pitching_lines=self._team_pitching.get(team_id, ()),
+            fielding_lines=self._team_fielding.get(team_id, ()),
+            league_range_baselines=self._league_range_baselines,
             weights=self._weights,
             fip_constants=self._fip_constants,
         )

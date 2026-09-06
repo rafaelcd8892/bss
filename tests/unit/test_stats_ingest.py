@@ -40,6 +40,40 @@ HITTING_PAYLOAD = {
     ]
 }
 
+FIELDING_PAYLOAD = {
+    "stats": [
+        {
+            "group": {"displayName": "fielding"},
+            "splits": [
+                {
+                    "stat": {
+                        "position": {"abbreviation": "RF"},
+                        "innings": "1200.0",
+                        "putOuts": 250,
+                        "assists": 8,
+                        "errors": 3,
+                        "chances": 261,
+                        "doublePlays": 2,
+                        "games": 140,
+                        "gamesStarted": 138,
+                    },
+                    "team": {"id": 147},
+                },
+                {
+                    # A designated-hitter split: no innings, and the API sends a
+                    # literal "-.--" range factor. It must not become a record.
+                    "stat": {
+                        "position": {"abbreviation": "DH"},
+                        "innings": "0.0",
+                        "rangeFactorPerGame": "-.--",
+                    },
+                    "team": {"id": 147},
+                },
+            ],
+        }
+    ]
+}
+
 PITCHING_PAYLOAD = {
     "stats": [
         {
@@ -118,12 +152,15 @@ class FakeStatsClient:
         self, *, player_id: int, season: int, group: str
     ) -> dict[str, Any]:
         del player_id, season
-        return HITTING_PAYLOAD if group == "hitting" else PITCHING_PAYLOAD
+        if group == "hitting":
+            return HITTING_PAYLOAD
+        return FIELDING_PAYLOAD if group == "fielding" else PITCHING_PAYLOAD
 
 
 class FakeStatsRepository:
     def __init__(self) -> None:
         self.player_stats: list[PlayerSeasonStatRecord] = []
+        self.fielding: list = []
         self.committed = False
         self.rolled_back = False
 
@@ -147,6 +184,11 @@ class FakeStatsRepository:
     ) -> int:
         del snapshot_id, season
         return len(list(memberships))
+
+    def upsert_player_season_fielding(self, *, snapshot_id: str, records) -> int:
+        del snapshot_id
+        self.fielding = list(records)
+        return len(self.fielding)
 
     def upsert_player_season_stats(
         self, *, snapshot_id: str, records: Any
@@ -179,8 +221,9 @@ async def test_pipeline_ingests_and_computes_player_stats(tmp_path: Path) -> Non
 
     assert repository.committed is True
     assert result.stats_snapshot_id is not None
-    # The roster player is a right fielder, so only his hitting line is requested.
+    # The roster player is a right fielder: hitting and fielding, no pitching.
     assert result.player_stats_upserted == 1
+    assert result.fielding_upserted == 1
     [record] = repository.player_stats
     assert record.stat_group == "hitting"
     assert record.woba is not None
@@ -188,6 +231,11 @@ async def test_pipeline_ingests_and_computes_player_stats(tmp_path: Path) -> Non
     assert record.obp is not None
     assert record.slg is not None
     assert record.babip is not None
+    # The designated-hitter split carries no innings and is dropped rather than
+    # stored as a position with zero range.
+    [fielding_record] = repository.fielding
+    assert fielding_record.line.position == "RF"
+    assert fielding_record.range_factor_per_nine is not None
 
 
 @pytest.mark.asyncio
@@ -247,7 +295,9 @@ class ConcurrencyProbeClient:
         self.max_in_flight = max(self.max_in_flight, self.in_flight)
         try:
             await asyncio.sleep(0.01)
-            return HITTING_PAYLOAD if group == "hitting" else PITCHING_PAYLOAD
+            if group == "hitting":
+                return HITTING_PAYLOAD
+            return FIELDING_PAYLOAD if group == "fielding" else PITCHING_PAYLOAD
         finally:
             self.in_flight -= 1
 
@@ -278,22 +328,35 @@ async def test_player_stats_ingestion_respects_concurrency_limit(tmp_path: Path)
 
 class TestStatGroupSelection:
     def test_position_players_only_need_hitting(self) -> None:
-        assert stat_groups_for("RF", fetch_all=False) == ("hitting",)
-        assert stat_groups_for("2b", fetch_all=False) == ("hitting",)
+        # They field too, so the fielding split comes along.
+        assert stat_groups_for("RF", fetch_all=False) == ("hitting", "fielding")
+        assert stat_groups_for("2b", fetch_all=False) == ("hitting", "fielding")
 
     def test_pitchers_only_need_pitching(self) -> None:
         assert stat_groups_for("P", fetch_all=False) == ("pitching",)
         assert stat_groups_for("RHP", fetch_all=False) == ("pitching",)
 
-    def test_declared_two_way_players_need_both(self) -> None:
-        assert stat_groups_for("TWP", fetch_all=False) == ("hitting", "pitching")
+    def test_declared_two_way_players_need_everything(self) -> None:
+        assert stat_groups_for("TWP", fetch_all=False) == (
+            "hitting",
+            "pitching",
+            "fielding",
+        )
 
     def test_an_unknown_position_falls_back_to_both(self) -> None:
         # Missing position data must not silently drop a player's stats.
-        assert stat_groups_for(None, fetch_all=False) == ("hitting", "pitching")
+        assert stat_groups_for(None, fetch_all=False) == (
+            "hitting",
+            "pitching",
+            "fielding",
+        )
 
     def test_the_override_always_requests_both(self) -> None:
-        assert stat_groups_for("RF", fetch_all=True) == ("hitting", "pitching")
+        assert stat_groups_for("RF", fetch_all=True) == (
+            "hitting",
+            "pitching",
+            "fielding",
+        )
 
 
 @pytest.mark.asyncio
@@ -337,4 +400,6 @@ async def test_all_stat_groups_override_doubles_the_requests(tmp_path: Path) -> 
         snapshot_store=SnapshotStore(tmp_path / "raw"),
     )
 
+    # Four players, three groups each — but only the two stat groups become
+    # stat rows; fielding lands in its own table.
     assert result.player_stats_upserted == 8

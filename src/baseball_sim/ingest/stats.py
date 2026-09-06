@@ -16,16 +16,19 @@ from typing import Any, Literal
 
 from baseball_sim.sim.sabermetrics import (
     RawBattingLine,
+    RawFieldingLine,
     RawPitchingLine,
     compute_babip,
     compute_batting_average,
     compute_era,
+    compute_fielding_percentage,
     compute_fip,
     compute_ground_ball_rate,
     compute_iso,
     compute_k_bb_ratio,
     compute_obp,
     compute_ops,
+    compute_range_factor_per_nine,
     compute_slg,
     compute_strikeout_rate,
     compute_walk_rate,
@@ -35,6 +38,16 @@ from baseball_sim.sim.sabermetrics import (
 )
 
 StatGroup = Literal["hitting", "pitching"]
+
+
+@dataclass(frozen=True)
+class PlayerSeasonFieldingRecord:
+    player_id: int
+    season: int
+    team_id: int | None
+    line: RawFieldingLine
+    fielding_percentage: float | None = None
+    range_factor_per_nine: float | None = None
 
 
 @dataclass(frozen=True)
@@ -152,6 +165,73 @@ def parse_pitching_line(stat: dict[str, Any]) -> RawPitchingLine:
         games_played=_as_int(stat.get("gamesPlayed")),
         games_started=_as_int(stat.get("gamesStarted")),
     )
+
+
+def parse_fielding_line(stat: dict[str, Any]) -> RawFieldingLine | None:
+    """One position's fielding split, or None when it is not a fielding entry.
+
+    A designated hitter appears here with zero innings and a literal "-.--" range
+    factor, which is why the rates are recomputed from the counts rather than parsed
+    out of the payload.
+    """
+
+    position = stat.get("position")
+    abbreviation = position.get("abbreviation") if isinstance(position, dict) else None
+    innings = innings_to_float(stat.get("innings"))
+    if not isinstance(abbreviation, str) or not abbreviation or innings <= 0:
+        return None
+    return RawFieldingLine(
+        position=abbreviation,
+        innings=innings,
+        put_outs=_as_int(stat.get("putOuts")),
+        assists=_as_int(stat.get("assists")),
+        errors=_as_int(stat.get("errors")),
+        chances=_as_int(stat.get("chances")),
+        double_plays=_as_int(stat.get("doublePlays")),
+        games=_as_int(stat.get("games")),
+        games_started=_as_int(stat.get("gamesStarted")),
+    )
+
+
+def normalize_player_fielding(
+    *, player_id: int, season: int, payload: dict[str, Any]
+) -> list[PlayerSeasonFieldingRecord]:
+    """Every position a player actually fielded, one record each."""
+
+    stats = payload.get("stats")
+    if not isinstance(stats, list):
+        return []
+
+    records: list[PlayerSeasonFieldingRecord] = []
+    for group_block in stats:
+        if not isinstance(group_block, dict):
+            continue
+        group = group_block.get("group")
+        if not isinstance(group, dict) or group.get("displayName") != "fielding":
+            continue
+        splits = group_block.get("splits")
+        if not isinstance(splits, list):
+            continue
+        for split in splits:
+            if not isinstance(split, dict):
+                continue
+            stat = split.get("stat")
+            if not isinstance(stat, dict):
+                continue
+            line = parse_fielding_line(stat)
+            if line is None:
+                continue
+            records.append(
+                PlayerSeasonFieldingRecord(
+                    player_id=player_id,
+                    season=season,
+                    team_id=_split_team_id(split),
+                    line=line,
+                    fielding_percentage=_round(compute_fielding_percentage(line), 4),
+                    range_factor_per_nine=_round(compute_range_factor_per_nine(line), 3),
+                )
+            )
+    return records
 
 
 def _batting_record(

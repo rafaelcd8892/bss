@@ -1114,6 +1114,12 @@
           "factors": {
             "$ref": "#/components/schemas/TeamProfileFactors"
           },
+          "fielders_counted": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Fielders Counted",
+            "type": "integer"
+          },
           "pitchers_counted": {
             "minimum": 0.0,
             "title": "Pitchers Counted",

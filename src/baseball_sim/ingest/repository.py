@@ -10,7 +10,7 @@ from baseball_sim.ingest.normalize import (
     TeamRecord,
 )
 from baseball_sim.ingest.snapshot_store import StoredSnapshot
-from baseball_sim.ingest.stats import PlayerSeasonStatRecord
+from baseball_sim.ingest.stats import PlayerSeasonFieldingRecord, PlayerSeasonStatRecord
 
 
 class IngestRepository(Protocol):
@@ -26,6 +26,10 @@ class IngestRepository(Protocol):
 
     def upsert_player_season_stats(
         self, *, snapshot_id: str, records: Sequence[PlayerSeasonStatRecord]
+    ) -> int: ...
+
+    def upsert_player_season_fielding(
+        self, *, snapshot_id: str, records: Sequence[PlayerSeasonFieldingRecord]
     ) -> int: ...
 
     def upsert_roster_memberships(
@@ -207,6 +211,46 @@ class PostgresIngestRepository:
             cursor.executemany(
                 _PLAYER_SEASON_STATS_SQL,
                 [_player_season_stats_row(record, snapshot_id) for record in records],
+            )
+        return len(records)
+
+    def upsert_player_season_fielding(
+        self, *, snapshot_id: str, records: Sequence[PlayerSeasonFieldingRecord]
+    ) -> int:
+        with self._conn.cursor() as cursor:
+            cursor.executemany(
+                """
+                INSERT INTO player_season_fielding (
+                    player_id, season, team_id, position, games, games_started,
+                    innings, put_outs, assists, errors, chances, double_plays,
+                    fielding_percentage, range_factor_per_nine, source_snapshot_id
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (player_id, season, position, source_snapshot_id) DO UPDATE
+                SET team_id = EXCLUDED.team_id,
+                    games = EXCLUDED.games,
+                    games_started = EXCLUDED.games_started,
+                    innings = EXCLUDED.innings,
+                    put_outs = EXCLUDED.put_outs,
+                    assists = EXCLUDED.assists,
+                    errors = EXCLUDED.errors,
+                    chances = EXCLUDED.chances,
+                    double_plays = EXCLUDED.double_plays,
+                    fielding_percentage = EXCLUDED.fielding_percentage,
+                    range_factor_per_nine = EXCLUDED.range_factor_per_nine,
+                    loaded_at_utc = NOW()
+                """,
+                [
+                    (
+                        record.player_id, record.season, record.team_id,
+                        record.line.position, record.line.games, record.line.games_started,
+                        record.line.innings, record.line.put_outs, record.line.assists,
+                        record.line.errors, record.line.chances, record.line.double_plays,
+                        record.fielding_percentage, record.range_factor_per_nine,
+                        snapshot_id,
+                    )
+                    for record in records
+                ],
             )
         return len(records)
 

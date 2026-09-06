@@ -7,7 +7,11 @@ from baseball_sim.api.routes import get_catalog_repository
 from baseball_sim.domain.catalog import LEADER_METRICS, leader_qualifier_label
 from baseball_sim.domain.contracts import LeaderMetric, PlayerSummary, StatLeader, TeamSummary
 from baseball_sim.main import app
-from baseball_sim.sim.sabermetrics import RawBattingLine, RawPitchingLine
+from baseball_sim.sim.sabermetrics import (
+    RawBattingLine,
+    RawFieldingLine,
+    RawPitchingLine,
+)
 
 
 class FakeLeaderCatalog:
@@ -16,6 +20,10 @@ class FakeLeaderCatalog:
 
     def list_teams(self) -> list[TeamSummary]:
         return []
+
+    def get_league_fielding_lines(self, *, season: int) -> dict[int, list[RawFieldingLine]]:
+        del season
+        return {}
 
     def get_player(self, *, player_id: int) -> PlayerSummary | None:
         del player_id
@@ -131,6 +139,13 @@ ELITE_LINE = RawBattingLine(
 ACE_LINE = RawPitchingLine(
     innings_pitched=180.0, strikeouts=220, walks=40, hit_by_pitch=5, home_runs=16
 )
+#: A shortstop making 4.5 plays per nine — the league average built below is 4.0.
+RANGY_SHORTSTOP = RawFieldingLine(
+    position="SS", innings=1000.0, put_outs=200, assists=300, errors=10
+)
+PLODDING_SHORTSTOP = RawFieldingLine(
+    position="SS", innings=1000.0, put_outs=150, assists=239, errors=14
+)
 
 
 class FakeProfileCatalog(FakeLeaderCatalog):
@@ -171,8 +186,51 @@ def test_team_profile_from_real_stats() -> None:
     factors = payload["factors"]
     assert all(0.0 <= factors[name] <= 1.0 for name in factors)
     assert factors["offense"] > 0.6
-    # Fielding is not ingested, so range stays neutral.
+    # No fielding ingested for this club, so range stays neutral and says so.
     assert factors["range_factor"] == 0.5
+    assert payload["fielders_counted"] == 0
+
+
+class FakeFieldingCatalog(FakeProfileCatalog):
+    """Two clubs whose shortstops differ; the league baseline is their average."""
+
+    def get_league_fielding_lines(self, *, season: int) -> dict[int, list[RawFieldingLine]]:
+        del season
+        return {147: [RANGY_SHORTSTOP], 121: [PLODDING_SHORTSTOP]}
+
+
+def test_range_factor_reflects_fielding_against_the_league() -> None:
+    catalog = FakeFieldingCatalog(with_data=True)
+    try:
+        client = _client_with(catalog)
+        rangy = client.get("/api/v1/teams/147/profile").json()
+        plodding = client.get("/api/v1/teams/121/profile").json()
+    finally:
+        app.dependency_overrides.pop(get_catalog_repository, None)
+
+    # Same positions, so the comparison is defense rather than positional mix.
+    assert rangy["factors"]["range_factor"] > 0.5 > plodding["factors"]["range_factor"]
+    assert rangy["fielders_counted"] == 1
+
+
+def test_range_factor_is_neutral_when_a_club_matches_the_league() -> None:
+    """A club fielding exactly at the baseline must land in the middle of the band."""
+
+    class MatchingCatalog(FakeProfileCatalog):
+        def get_league_fielding_lines(
+            self, *, season: int
+        ) -> dict[int, list[RawFieldingLine]]:
+            del season
+            return {147: [RANGY_SHORTSTOP], 121: [RANGY_SHORTSTOP]}
+
+    try:
+        payload = _client_with(MatchingCatalog(with_data=True)).get(
+            "/api/v1/teams/147/profile"
+        ).json()
+    finally:
+        app.dependency_overrides.pop(get_catalog_repository, None)
+
+    assert payload["factors"]["range_factor"] == pytest.approx(0.5)
 
 
 def test_team_profile_falls_back_to_synthetic_without_data() -> None:

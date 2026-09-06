@@ -19,11 +19,17 @@ from baseball_sim.domain.contracts import (
     TeamSummary,
 )
 from baseball_sim.domain.postgres_stats import (
+    SEASON_FIELDING_COLUMNS,
     SEASON_STATS_COLUMNS,
     batting_line_from_row,
+    fielding_line_from_row,
     pitching_line_from_row,
 )
-from baseball_sim.sim.sabermetrics import RawBattingLine, RawPitchingLine
+from baseball_sim.sim.sabermetrics import (
+    RawBattingLine,
+    RawFieldingLine,
+    RawPitchingLine,
+)
 
 _LIST_TEAMS = """
     SELECT team_id, name, abbreviation, league_name, division_name
@@ -140,6 +146,10 @@ class CatalogRepository(Protocol):
     def get_all_team_stat_lines(
         self, *, season: int
     ) -> dict[int, tuple[list[RawBattingLine], list[RawPitchingLine]]]: ...
+
+    def get_league_fielding_lines(
+        self, *, season: int
+    ) -> dict[int, list[RawFieldingLine]]: ...
 
     def get_player_season_lines(
         self, *, player_id: int, season: int
@@ -299,6 +309,30 @@ class PostgresCatalogRepository:
                 batting.append(batting_line_from_row(row))
             elif group == "pitching":
                 pitching.append(pitching_line_from_row(row))
+        return by_team
+
+    def get_league_fielding_lines(
+        self, *, season: int
+    ) -> dict[int, list[RawFieldingLine]]:
+        """Every club's fielding splits for a season, keyed by team.
+
+        Always league-wide, even when only one club is being rendered: a range factor
+        means nothing without the league baseline at the same positions to divide by.
+        """
+
+        query = f"""
+            SELECT DISTINCT ON (player_id, position) {SEASON_FIELDING_COLUMNS}
+            FROM player_season_fielding
+            WHERE season = %s AND team_id IS NOT NULL
+            ORDER BY player_id, position, loaded_at_utc DESC
+        """
+        with self._conn.cursor() as cursor:
+            cursor.execute(query, (season,))
+            rows = cursor.fetchall()
+
+        by_team: dict[int, list[RawFieldingLine]] = {}
+        for row in rows:
+            by_team.setdefault(int(row[1]), []).append(fielding_line_from_row(row))
         return by_team
 
     def get_player_season_lines(

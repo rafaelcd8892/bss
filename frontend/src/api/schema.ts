@@ -601,6 +601,11 @@ export interface components {
             /** Batters Counted */
             batters_counted: number;
             factors: components["schemas"]["TeamProfileFactors"];
+            /**
+             * Fielders Counted
+             * @default 0
+             */
+            fielders_counted: number;
             /** Pitchers Counted */
             pitchers_counted: number;
             /** Season */

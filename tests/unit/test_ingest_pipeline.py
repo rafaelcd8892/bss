@@ -72,6 +72,7 @@ class FakeRepository:
         self.players: list[PlayerRecord] = []
         self.games: list[GameRecord] = []
         self.memberships: list = []
+        self.fielding: list = []
         self.committed = False
         self.rolled_back = False
 
@@ -93,6 +94,11 @@ class FakeRepository:
         del snapshot_id
         self.games = games
         return len(games)
+
+    def upsert_player_season_fielding(self, *, snapshot_id: str, records) -> int:
+        del snapshot_id
+        self.fielding = list(records)
+        return len(self.fielding)
 
     def upsert_roster_memberships(
         self, *, snapshot_id: str, season: int, memberships: list

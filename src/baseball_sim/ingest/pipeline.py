@@ -18,10 +18,15 @@ from baseball_sim.ingest.normalize import (
 )
 from baseball_sim.ingest.repository import IngestRepository, PostgresIngestRepository
 from baseball_sim.ingest.snapshot_store import SnapshotStore, StoredSnapshot
-from baseball_sim.ingest.stats import PlayerSeasonStatRecord, normalize_player_stats
+from baseball_sim.ingest.stats import (
+    PlayerSeasonFieldingRecord,
+    PlayerSeasonStatRecord,
+    normalize_player_fielding,
+    normalize_player_stats,
+)
 
 SOURCE_SYSTEM = "mlb_stats_api"
-STAT_GROUPS = ("hitting", "pitching")
+STAT_GROUPS = ("hitting", "pitching", "fielding")
 
 #: Positions the MLB roster uses for a pitcher and for a declared two-way player.
 _PITCHER_POSITIONS = frozenset({"P", "SP", "RP", "LHP", "RHP", "CP"})
@@ -45,8 +50,10 @@ def stat_groups_for(position: str | None, *, fetch_all: bool) -> tuple[str, ...]
     if normalized == _TWO_WAY_POSITION:
         return STAT_GROUPS
     if normalized in _PITCHER_POSITIONS:
+        # A pitcher's own fielding is a rounding error on team defense, and skipping
+        # it keeps the request count down.
         return ("pitching",)
-    return ("hitting",)
+    return ("hitting", "fielding")
 
 
 async def _gather_limited[T](
@@ -109,6 +116,7 @@ class IngestionResult:
     games_skipped: int = 0
     stats_snapshot_id: str | None = None
     player_stats_upserted: int = 0
+    fielding_upserted: int = 0
 
 
 async def ingest_mlb_window(
@@ -244,8 +252,9 @@ async def _ingest_with_client(
 
     stats_snapshot_id: str | None = None
     player_stats_upserted = 0
+    fielding_upserted = 0
     if include_player_stats and _client_supports_stats(client):
-        stats_snapshot_id, player_stats_upserted = await _ingest_player_stats(
+        stats_snapshot_id, player_stats_upserted, fielding_upserted = await _ingest_player_stats(
             client=cast(SupportsPlayerStatsClient, client),
             repository=repository,
             snapshot_store=snapshot_store,
@@ -266,6 +275,7 @@ async def _ingest_with_client(
         games_skipped=games_skipped,
         stats_snapshot_id=stats_snapshot_id,
         player_stats_upserted=player_stats_upserted,
+        fielding_upserted=fielding_upserted,
     )
 
 
@@ -302,7 +312,7 @@ async def _ingest_player_stats(
     season: int,
     all_stat_groups: bool = False,
     max_concurrency: int = 8,
-) -> tuple[str, int]:
+) -> tuple[str, int, int]:
     by_id = {player.player_id: player for player in players}
     requests: list[tuple[int, str]] = [
         (player_id, group)
@@ -313,6 +323,7 @@ async def _ingest_player_stats(
     ]
     raw_payloads: dict[str, dict[str, Any]] = {}
     records: list[PlayerSeasonStatRecord] = []
+    fielding: list[PlayerSeasonFieldingRecord] = []
 
     def stats_factory(player_id: int, group: str) -> Callable[[], Awaitable[dict[str, Any]]]:
         async def call() -> dict[str, Any]:
@@ -329,9 +340,14 @@ async def _ingest_player_stats(
 
     for (player_id, group), payload in zip(requests, payloads, strict=True):
         raw_payloads[f"{player_id}:{group}"] = payload
-        records.extend(
-            normalize_player_stats(player_id=player_id, season=season, payload=payload)
-        )
+        if group == "fielding":
+            fielding.extend(
+                normalize_player_fielding(player_id=player_id, season=season, payload=payload)
+            )
+        else:
+            records.extend(
+                normalize_player_stats(player_id=player_id, season=season, payload=payload)
+            )
 
     stats_snapshot = snapshot_store.write_snapshot(
         source_system=SOURCE_SYSTEM,
@@ -346,7 +362,10 @@ async def _ingest_player_stats(
     upserted = repository.upsert_player_season_stats(
         snapshot_id=stats_snapshot.snapshot_id, records=records
     )
-    return stats_snapshot.snapshot_id, upserted
+    fielding_upserted = repository.upsert_player_season_fielding(
+        snapshot_id=stats_snapshot.snapshot_id, records=fielding
+    )
+    return stats_snapshot.snapshot_id, upserted, fielding_upserted
 
 
 def _record_snapshot(

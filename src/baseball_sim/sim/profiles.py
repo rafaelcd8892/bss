@@ -5,13 +5,13 @@ prevents runs. Two builders produce it:
 
 - :func:`synthetic_team_profile` — deterministic hash of ``(seed, team_id)``. Used as
   the fallback when no real stats are available (preserves prior behavior exactly).
-- :func:`team_profile_from_stats` — aggregates real ingested batting/pitching lines
-  into the same factor space via documented league reference ranges.
+- :func:`team_profile_from_stats` — aggregates real ingested batting/pitching/fielding
+  lines into the same factor space via documented league reference ranges.
 """
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 
 from baseball_sim.sim.hashing import unit_interval
@@ -20,10 +20,12 @@ from baseball_sim.sim.sabermetrics import (
     DEFAULT_WOBA_WEIGHTS,
     FipConstants,
     RawBattingLine,
+    RawFieldingLine,
     RawPitchingLine,
     WobaWeights,
     compute_fip,
     compute_k_bb_ratio,
+    compute_range_factor_per_nine,
     compute_woba,
 )
 
@@ -52,6 +54,12 @@ _NEUTRAL_RANGE_FACTOR = 0.5
 # can be stale; a floor here does not depend on that being right.
 MIN_TEAM_BATTING_PA = 25
 MIN_TEAM_PITCHING_IP = 5.0
+#: A fielding split below this is a cameo at a position, not evidence of range.
+MIN_TEAM_FIELDING_INNINGS = 20.0
+
+#: Band for a club's range relative to the league at the same positions. A club making
+#: 12% fewer plays than average at its positions maps to 0, and 12% more to 1.
+_RELATIVE_RANGE_BAND = (0.88, 1.12)
 
 
 @dataclass(frozen=True)
@@ -88,10 +96,58 @@ def _normalize_inverted(value: float, low: float, high: float) -> float:
     return 1.0 - _normalize(value, low, high)
 
 
+def league_range_factors(
+    lines: Iterable[RawFieldingLine],
+) -> dict[str, float]:
+    """Innings-weighted league range factor for each position.
+
+    Computed from the ingested league rather than hardcoded, so the baseline moves
+    with the data instead of drifting away from it.
+    """
+
+    totals: dict[str, list[float]] = {}
+    for line in lines:
+        if line.innings <= 0:
+            continue
+        plays, innings = totals.setdefault(line.position, [0.0, 0.0])
+        totals[line.position] = [plays + line.plays_made, innings + line.innings]
+    return {
+        position: (plays * 9.0) / innings
+        for position, (plays, innings) in totals.items()
+        if innings > 0
+    }
+
+
+def relative_range(
+    lines: Sequence[RawFieldingLine], baselines: Mapping[str, float]
+) -> float | None:
+    """A club's plays made against what the league makes at the same positions.
+
+    Weighted by innings, so a regular shortstop counts for more than a September
+    call-up, and normalized per position so the number reflects defense rather than
+    which positions the club happened to field.
+    """
+
+    weighted = 0.0
+    innings_total = 0.0
+    for line in lines:
+        if line.innings < MIN_TEAM_FIELDING_INNINGS:
+            continue
+        baseline = baselines.get(line.position)
+        player_rate = compute_range_factor_per_nine(line)
+        if not baseline or player_rate is None:
+            continue
+        weighted += (player_rate / baseline) * line.innings
+        innings_total += line.innings
+    return weighted / innings_total if innings_total > 0 else None
+
+
 def team_profile_from_stats(
     *,
     batting_lines: Sequence[RawBattingLine],
     pitching_lines: Sequence[RawPitchingLine],
+    fielding_lines: Sequence[RawFieldingLine] = (),
+    league_range_baselines: Mapping[str, float] | None = None,
     weights: WobaWeights = DEFAULT_WOBA_WEIGHTS,
     fip_constants: FipConstants = DEFAULT_FIP_CONSTANTS,
 ) -> TeamProfile | None:
@@ -110,6 +166,19 @@ def team_profile_from_stats(
     offense, discipline, power, speed = _offense_factors(counted_batting, weights)
     prevention, command = _pitching_factors(counted_pitching, fip_constants)
 
+    # Without fielding data, or without a league to compare against, range stays
+    # neutral rather than being guessed.
+    relative = (
+        relative_range(fielding_lines, league_range_baselines)
+        if fielding_lines and league_range_baselines
+        else None
+    )
+    range_factor = (
+        _normalize(relative, *_RELATIVE_RANGE_BAND)
+        if relative is not None
+        else _NEUTRAL_RANGE_FACTOR
+    )
+
     return TeamProfile(
         offense=offense,
         discipline=discipline,
@@ -117,8 +186,7 @@ def team_profile_from_stats(
         speed=speed,
         prevention=prevention,
         command=command,
-        # Fielding range is not yet ingested; stay neutral until it is.
-        range_factor=_NEUTRAL_RANGE_FACTOR,
+        range_factor=range_factor,
     )
 
 

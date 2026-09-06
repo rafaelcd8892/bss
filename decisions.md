@@ -452,7 +452,88 @@ When adding a new decision, use this format:
 
 ---
 
+## ADR-021: Range Factor as a League-Relative, Position-Normalized Rate
+- Date: 2026-09-06
+- Status: Accepted
+- Context:
+  - `range_factor` was the last of the simulator's seven factors still pinned to a
+    neutral 0.5 for every club. Fielding turned out to cost nothing extra to ingest:
+    the same `/people/{id}/stats` endpoint serves `group=fielding`, returning one split
+    per position played.
+  - A raw range factor (plays made per nine innings) is not comparable across
+    positions: a first baseman is around 8.1 and a third baseman around 2.4, so a club
+    that happens to play its innings at putout-heavy positions would look rangy for
+    reasons that have nothing to do with defense.
+- Decision:
+  - Store fielding in its own table, `player_season_fielding`, keyed by position: the
+    API reports one split per position, so a utility player is several rows and
+    position has to be part of the key. Reusing `player_season_stats` would have needed
+    a wider key and a column set that means nothing for hitters.
+  - Compute the league baseline per position from the ingested league itself
+    (`league_range_factors`) rather than hardcoding it, so it moves with the data.
+  - Express a club as `relative_range`: its plays made against what the league makes at
+    the same positions, weighted by innings, then mapped through a documented ±12% band
+    into `[0, 1]`. Splits under `MIN_TEAM_FIELDING_INNINGS` (20) are cameos and are
+    dropped, the same shape of floor ADR-019 established for batting and pitching.
+  - Recompute the rates from the counting stats instead of parsing them: a designated
+    hitter appears in this payload with zero innings and a literal `"-.--"` range
+    factor. Those entries are dropped rather than stored as a position with no range.
+  - Report `fielders_counted` on the team profile, and render a dash rather than 0.50
+    where it is zero: the neutral value is a placeholder, not a measurement, and the
+    table must not present the two identically.
+- Consequences:
+  - Range now spreads from 0.31 to 0.77 across the thirty clubs, all thirty distinct,
+    on real 2026 data — the factor carries information instead of cancelling out.
+  - Pitchers are not asked for fielding: their own defense is a rounding error on team
+    range, and skipping them keeps the request count down. A declared two-way player
+    still is, and contributed the single `P` split in the league (0.0% of counted
+    innings, so it neither distorts nor helps).
+  - Determinism goldens needed no refresh after all. The plan assumed activating the
+    factor would move seeded output, but the seeded path builds its profile from
+    hashes and never touches these lines; only runs served from Postgres change.
+- Alternatives considered:
+  - A hardcoded league baseline per position (drifts away from the data, and would have
+    to be revised every season).
+  - Defensive Runs Saved or UZR (better metrics, but neither is in this API; they would
+    reopen the licensing question ADR-003 defers to Statcast).
+
+---
+
+## ADR-022: The Newest Snapshot Wins When Reading a Season
+- Date: 2026-09-06
+- Status: Accepted
+- Context:
+  - `player_season_stats` is keyed by `(player_id, season, source_snapshot_id,
+    stat_group)`, so every ingestion run appends a fresh row per player rather than
+    replacing the previous one — by design, since ADR-007 keeps snapshots immutable.
+  - The serving provider read the season with no snapshot filter and appended every row
+    into the club's aggregate. With two snapshots ingested, thirty clubs were each
+    built from roughly twice their real roster. The distortion hid well: every factor
+    is a ratio, so duplicating an unchanged line cancels out exactly. It only bites
+    when the two snapshots differ — which is precisely what a re-ingest produces, an
+    April line summed alongside September's.
+  - The catalog repository already did this correctly with `DISTINCT ON`; the provider
+    path did not, and nothing tested the disagreement.
+- Decision:
+  - Deduplicate on read in both paths: the newest row per `(player, stat_group)`, and
+    per `(player, position)` for fielding. Aggregates are built from the deduplicated
+    lines, never from the raw rows.
+- Consequences:
+  - Re-ingesting a season is now idempotent from the serving side, which it has to be:
+    Step 5 required a re-ingest, and every later step will too.
+  - Snapshots stay immutable and fully queryable for lineage; the collapse happens at
+    read time, where it belongs.
+- Alternatives considered:
+  - Upserting over the previous snapshot's row (destroys the audit trail ADR-007 exists
+    to protect).
+  - Filtering to a single snapshot id per season (a run can legitimately span more than
+    one, and a player traded mid-season would vanish).
+
+---
+
 ## Change Log
+- 2026-09-06: Added ADR-021 and ADR-022; fielding ingested and mapped onto a
+  league-relative range factor, and season reads now collapse to the newest snapshot.
 - 2026-09-06: Added ADR-020; one win-probability model, server-side, with predict
   rebuilt on real team profiles.
 - 2026-09-05: Added ADR-019; Analyze data foundations (per-metric provenance,

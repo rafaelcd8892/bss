@@ -44,12 +44,14 @@ from baseball_sim.domain.simulation_runs import (
 from baseball_sim.sim.profiles import (
     aggregate_batting,
     aggregate_pitching,
+    league_range_factors,
     synthetic_team_profile,
     team_profile_from_stats,
 )
 from baseball_sim.sim.rulesets import load_ruleset_from_path
 from baseball_sim.sim.sabermetrics import (
     RawBattingLine,
+    RawFieldingLine,
     RawPitchingLine,
     compute_fip,
     compute_woba,
@@ -124,17 +126,33 @@ def get_team_roster_endpoint(team_id: int, catalog: CatalogDependency) -> TeamRo
     return TeamRosterResponse(team_id=team_id, players=catalog.get_team_roster(team_id=team_id))
 
 
+def _league_baselines(
+    fielding_by_team: dict[int, list[RawFieldingLine]],
+) -> dict[str, float] | None:
+    """League range factor per position, or ``None`` when nothing was ingested."""
+
+    lines = [line for club in fielding_by_team.values() for line in club]
+    return league_range_factors(lines) or None if lines else None
+
+
 def _team_profile_response(
     *,
     team_id: int,
     season: int,
     batting: list[RawBattingLine],
     pitching: list[RawPitchingLine],
+    fielding: list[RawFieldingLine],
+    league_range_baselines: dict[str, float] | None,
     fallback_seed: int,
 ) -> TeamProfileResponse:
     """Build one club's profile, labelling whether it came from data or the seed."""
 
-    profile = team_profile_from_stats(batting_lines=batting, pitching_lines=pitching)
+    profile = team_profile_from_stats(
+        batting_lines=batting,
+        pitching_lines=pitching,
+        fielding_lines=fielding,
+        league_range_baselines=league_range_baselines,
+    )
     if profile is None:
         # No ingested stats for this team: report the seed-derived fallback the
         # simulator would actually use, clearly labelled as synthetic.
@@ -158,6 +176,7 @@ def _team_profile_response(
         team_fip=round(compute_fip(aggregate_pitching(pitching)), 3) if pitching else None,
         batters_counted=len(batting),
         pitchers_counted=len(pitching),
+        fielders_counted=len(fielding) if league_range_baselines else 0,
     )
 
 
@@ -170,11 +189,14 @@ def get_team_profile_endpoint(
 ) -> TeamProfileResponse:
     resolved_season = season if season is not None else settings.stats_season
     batting, pitching = catalog.get_team_stat_lines(team_id=team_id, season=resolved_season)
+    fielding_by_team = catalog.get_league_fielding_lines(season=resolved_season)
     return _team_profile_response(
         team_id=team_id,
         season=resolved_season,
         batting=batting,
         pitching=pitching,
+        fielding=fielding_by_team.get(team_id, []),
+        league_range_baselines=_league_baselines(fielding_by_team),
         fallback_seed=settings.default_seed,
     )
 
@@ -187,12 +209,16 @@ def team_profiles_endpoint(
 ) -> TeamProfileListResponse:
     resolved_season = season if season is not None else settings.stats_season
     by_team = catalog.get_all_team_stat_lines(season=resolved_season)
+    fielding_by_team = catalog.get_league_fielding_lines(season=resolved_season)
+    baselines = _league_baselines(fielding_by_team)
     teams = [
         _team_profile_response(
             team_id=team_id,
             season=resolved_season,
             batting=batting,
             pitching=pitching,
+            fielding=fielding_by_team.get(team_id, []),
+            league_range_baselines=baselines,
             fallback_seed=settings.default_seed,
         )
         for team_id, (batting, pitching) in sorted(by_team.items())

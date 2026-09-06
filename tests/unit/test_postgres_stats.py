@@ -38,3 +38,44 @@ def test_empty_rows_fall_back_to_synthetic() -> None:
     provider = build_stat_line_provider_from_rows(rows=[])
     rating = provider.player_rating(player_id=100, seed=1)
     assert rating == SyntheticStatsProvider().player_rating(player_id=100, seed=1)
+
+
+# Column order mirrors postgres_stats._SELECT_SEASON_FIELDING:
+# player_id, team_id, position, innings, put_outs, assists, errors, chances,
+# double_plays, games, games_started
+def fielding_row(player_id: int, team_id: int, assists: int) -> tuple[Any, ...]:
+    return (player_id, team_id, "SS", 1000.0, 200, assists, 10, 0, 0, 150, 150)
+
+
+def test_later_snapshots_replace_earlier_ones_instead_of_summing() -> None:
+    """A season holds one row per snapshot; summing them would double-count a club.
+
+    ``player_season_stats`` is keyed by snapshot, so a re-ingest leaves April's line
+    sitting next to September's. Adding both would blend a stale partial season into
+    the club's totals.
+    """
+
+    april = (100, 147, "hitting", None, 100, 20, 5, 0, 5, 10, 0, 1, 1, 25, 2, 120)
+    september = HITTING_ROW
+    provider = build_stat_line_provider_from_rows(rows=[april, september])
+
+    from_latest_only = build_stat_line_provider_from_rows(rows=[september])
+    assert provider.team_profile(team_id=147, seed=1) == from_latest_only.team_profile(
+        team_id=147, seed=1
+    )
+    assert provider.player_rating(player_id=100, seed=1) == from_latest_only.player_rating(
+        player_id=100, seed=1
+    )
+
+
+def test_fielding_rows_drive_range_against_the_league_baseline() -> None:
+    rows = [HITTING_ROW, PITCHING_ROW]
+    fielding = [fielding_row(100, 147, assists=300), fielding_row(300, 121, assists=239)]
+
+    provider = build_stat_line_provider_from_rows(rows=rows, fielding_rows=fielding)
+    assert provider.team_profile(team_id=147, seed=1).range_factor > 0.5
+
+
+def test_range_stays_neutral_without_fielding_rows() -> None:
+    provider = build_stat_line_provider_from_rows(rows=[HITTING_ROW], fielding_rows=[])
+    assert provider.team_profile(team_id=147, seed=1).range_factor == 0.5

@@ -51,6 +51,7 @@ async def _main() -> None:
                 "games_upserted": result.games_upserted,
                 "games_skipped": result.games_skipped,
                 "player_stats_upserted": result.player_stats_upserted,
+                "fielding_upserted": result.fielding_upserted,
             },
             indent=2,
             sort_keys=True,

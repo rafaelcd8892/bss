@@ -56,6 +56,8 @@ Pure functions, no I/O, fixed league weights (FanGraphs 2023 baseline):
 | wRC+ | `((wOBA − lgwOBA)/wOBAScale + lgR/PA) / (lgR/PA) · 100` (park-neutral) |
 | FIP | `(13·HR + 3·(BB + HBP) − 2·K) / IP + FIP_constant` |
 | K/BB | `K / max(BB, 1)` |
+| RF/9 | `(PO + A) x 9 / innings` — comparable only *within* a position |
+| FLD% | `(PO + A) / (PO + A + E)` |
 
 Weights live in `WobaWeights` / `FipConstants` dataclasses so they can be versioned
 per season without touching call sites.
@@ -86,11 +88,11 @@ missing measurement never masquerades as a real value of nought.
 
 Two separate concerns that are easy to conflate:
 
-**Scope** — which groups to request. Asking for both hitting and pitching for all ~840
-players doubles the request count and stores lines nobody wants. `stat_groups_for`
-picks by roster position: hitting for position players, pitching for pitchers, both for
-a declared two-way player, and both when the position is unknown. `--all-stat-groups`
-overrides it.
+**Scope** — which groups to request. Asking for every group for all ~840 players
+multiplies the request count and stores lines nobody wants. `stat_groups_for` picks by
+roster position: hitting and fielding for position players, pitching alone for pitchers
+(their own defense is a rounding error on team range), all three for a declared two-way
+player, and all three when the position is unknown. `--all-stat-groups` overrides it.
 
 **Trust** — which lines to count. This is where the correctness win is. Roster
 positions can be stale, so scope filtering alone cannot be relied on: a pitcher's four
@@ -111,16 +113,38 @@ documented league reference ranges:
 | speed | SB / PA | 0.000 – 0.100 |
 | prevention | team FIP (inverted) | 3.000 – 5.000 |
 | command | team K/BB | 1.500 – 4.000 |
-| range_factor | *(fielding not yet ingested)* | neutral 0.5 |
+| range_factor | relative range vs the league | 0.88 – 1.12 |
 
-`range_factor` is held neutral until fielding data is ingested — a tracked roadmap
-item rather than a silent guess.
+`range_factor` is the one factor that is not an absolute measurement mapped into a
+fixed band. A raw range factor cannot be compared across positions — the league's first
+basemen make about 8.1 plays per nine innings and its third basemen about 2.4 — so a
+club is scored against *the league at the positions it actually fielded*:
+
+1. `league_range_factors` derives an innings-weighted RF/9 per position from the
+   ingested league itself, so the baseline moves with the data.
+2. `relative_range` divides each split by its position's baseline and averages them
+   weighted by innings, skipping anything under `MIN_TEAM_FIELDING_INNINGS`.
+3. The result, a ratio around 1.0, maps through a ±12% band into `[0, 1]`.
+
+A club with no fielding data keeps the neutral 0.5, and the team profile reports
+`fielders_counted` so the placeholder is never mistaken for a measurement.
 
 ## Ingestion
 
 `ingest_mlb_window(..., include_player_stats=True)` (or `run_sync --include-player-stats`)
-fetches per-player season hitting/pitching splits, computes the sabermetrics, and
-upserts both the raw components and the computed metrics into `player_season_stats`.
+fetches per-player season hitting/pitching/fielding splits, computes the sabermetrics,
+and upserts the raw components and computed metrics into `player_season_stats` — and,
+for fielding, into `player_season_fielding`, one row per position played.
 Raw stat payloads are snapshotted immutably under `data/raw` like all other ingestion
 (ADR-007). Storing raw components lets the serving layer reconstruct the exact same
 `RawBattingLine`/`RawPitchingLine` and reuse one analytical code path end-to-end.
+
+## Reading a season back
+
+Snapshots are immutable (ADR-007), so each ingestion run appends a fresh row per player
+rather than replacing the previous one. Every read therefore collapses a season to the
+newest row per `(player, stat_group)` — and per `(player, position)` for fielding —
+before aggregating. Summing the raw rows would blend an April line into September's
+totals for the same player. The distortion is invisible in a single-snapshot database
+and in any ratio built from identical duplicates, which is exactly why it is enforced
+in one place and covered by a test rather than left to each call site.
