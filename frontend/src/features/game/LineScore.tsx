@@ -1,4 +1,4 @@
-import { teamLabel } from "../teams";
+import { teamLabel } from "../../teams";
 
 type LineScoreProps = {
   homeTeamId: number;

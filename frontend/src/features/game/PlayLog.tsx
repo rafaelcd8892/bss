@@ -1,4 +1,4 @@
-import type { Play } from "../api/client";
+import type { Play } from "../../api/client";
 
 type PlayLogProps = {
   /** Plays up to the current index, oldest first. */

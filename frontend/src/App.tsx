@@ -1,22 +1,42 @@
-import { GameViewer } from "./components/GameViewer";
-import { ThemeToggle } from "./components/ThemeToggle";
-import { useTheme } from "./useTheme";
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { AppShell } from "./components/AppShell";
+import {
+  AnalyzeCompare,
+  AnalyzeLeaders,
+  AnalyzePage,
+  AnalyzeTeams,
+} from "./routes/AnalyzePage";
+import { ExplorePage } from "./routes/ExplorePage";
+import { GamePage } from "./routes/GamePage";
+import { NotFoundPage } from "./routes/NotFoundPage";
+
+/**
+ * The viewer used to live at the root, so replay links look like
+ * `/?home=147&away=121&seed=1234`. Carry the query across the redirect or every
+ * link shared before routing existed would silently lose its matchup.
+ */
+function RootRedirect() {
+  const { search } = useLocation();
+  return <Navigate to={{ pathname: "/game", search }} replace />;
+}
 
 export function App() {
-  const { dark, toggle } = useTheme();
-
   return (
-    <div className="mx-auto max-w-4xl px-4 py-7">
-      <header className="mb-4 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-medium text-ink">baseball-sim</h1>
-          <p className="text-sm text-muted">
-            Deterministic live game viewer — same seed, same game, every time.
-          </p>
-        </div>
-        <ThemeToggle dark={dark} onToggle={toggle} />
-      </header>
-      <GameViewer dark={dark} />
-    </div>
+    <BrowserRouter>
+      <Routes>
+        <Route element={<AppShell />}>
+          <Route path="/" element={<RootRedirect />} />
+          <Route path="/game" element={<GamePage />} />
+          <Route path="/analyze" element={<AnalyzePage />}>
+            <Route index element={<Navigate to="compare" replace />} />
+            <Route path="compare" element={<AnalyzeCompare />} />
+            <Route path="leaders" element={<AnalyzeLeaders />} />
+            <Route path="teams" element={<AnalyzeTeams />} />
+          </Route>
+          <Route path="/explore" element={<ExplorePage />} />
+          <Route path="*" element={<NotFoundPage />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
   );
 }

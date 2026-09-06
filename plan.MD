@@ -206,7 +206,10 @@ every view deep-linkable. Analyze holds player/team analysis; game-scoped analys
 - [x] Per-metric provenance in `/compare/players` (ADR-019).
 - [x] `GET /stats/leaders` with qualifier + direction metadata.
 - [x] `GET /teams/{id}/profile` with the factors and their aggregate inputs.
-- [ ] Introduce react-router and the Game / Analyze / Explore shell.
+- [x] Introduce react-router and the Game / Analyze / Explore shell (deep-linkable,
+      old `/?home&away&seed` replay links redirect to `/game` keeping the query).
+- [x] SPA fallback in the FastAPI static mount, excluding the API prefix so a missing
+      endpoint still answers a JSON 404 instead of the HTML shell.
 - [ ] Analyze screens: Compare, Leaders, Teams.
 - [ ] Explore screens: team and player pages over the catalog endpoints.
 - [ ] Rebuild `/predict/game` on the stats provider before featuring it (today it is

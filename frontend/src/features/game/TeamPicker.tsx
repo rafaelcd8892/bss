@@ -1,5 +1,5 @@
-import { teamAccent } from "../teams";
-import type { CatalogTeam } from "../useTeamCatalog";
+import { teamAccent } from "../../teams";
+import type { CatalogTeam } from "../../useTeamCatalog";
 
 type TeamPickerProps = {
   label: string;

@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import type { Play } from "../api/client";
+import type { Play } from "../../api/client";
 
 type ScrubberProps = {
   plays: Play[];

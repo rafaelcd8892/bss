@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api, type Play, type PlayByPlayResult } from "../api/client";
-import { matchupAccents, teamLabel } from "../teams";
-import { useTeamCatalog } from "../useTeamCatalog";
-import { winProbability } from "../winprob";
-import { readParams, shareUrl, syncUrl, type GameParams } from "../url";
+import { api, type Play, type PlayByPlayResult } from "../../api/client";
+import { matchupAccents, teamLabel } from "../../teams";
+import { useTeamCatalog } from "../../useTeamCatalog";
+import { winProbability } from "./winprob";
+import { readParams, shareUrl, syncUrl, type GameParams } from "./url";
 import { BoxScore } from "./BoxScore";
 import { Diamond } from "./Diamond";
 import { LineScore } from "./LineScore";

@@ -1,6 +1,6 @@
 import { useMemo } from "react";
-import type { Play } from "../api/client";
-import { teamLabel } from "../teams";
+import type { Play } from "../../api/client";
+import { teamLabel } from "../../teams";
 
 type BoxScoreProps = {
   plays: Play[];

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { teamLabel } from "../teams";
+import { teamLabel } from "../../teams";
 
 type ScoreboardProps = {
   homeTeamId: number;

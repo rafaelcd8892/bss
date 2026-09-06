@@ -1,4 +1,4 @@
-import type { Play } from "./api/client";
+import type { Play } from "../../api/client";
 
 /**
  * Baseline win-probability model — explainable, not calibrated.
