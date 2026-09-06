@@ -8,9 +8,10 @@ the FastAPI dependency wiring lives in the routes module.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import Protocol
 
-from baseball_sim.domain.contracts import PlayerSummary, TeamSummary
+from baseball_sim.domain.contracts import LeaderMetric, PlayerSummary, StatLeader, TeamSummary
 
 _LIST_TEAMS = """
     SELECT team_id, name, abbreviation, league_name, division_name
@@ -58,6 +59,38 @@ _GET_BATTING_WOBA = """
 """
 
 
+@dataclass(frozen=True)
+class LeaderMetricMeta:
+    """How one leaderboard metric is queried and described.
+
+    ``column`` and ``qualifier_column`` are SQL identifiers chosen from this fixed
+    table — never from request input — so the metric name can be interpolated into
+    the query safely while the values stay parameterized.
+    """
+
+    column: str
+    stat_group: str
+    qualifier_column: str
+    qualifier_unit: str
+    descending: bool
+    default_minimum: float
+
+
+LEADER_METRICS: dict[LeaderMetric, LeaderMetricMeta] = {
+    "woba": LeaderMetricMeta("woba", "hitting", "pa", "PA", True, 200),
+    "wrc_plus": LeaderMetricMeta("wrc_plus", "hitting", "pa", "PA", True, 200),
+    # FIP is an ERA-scale metric: lower is better.
+    "fip": LeaderMetricMeta("fip", "pitching", "ip", "IP", False, 50),
+    "k_bb_ratio": LeaderMetricMeta("k_bb_ratio", "pitching", "ip", "IP", True, 50),
+}
+
+
+def leader_qualifier_label(metric: LeaderMetric, minimum: float) -> str:
+    meta = LEADER_METRICS[metric]
+    rendered = f"{minimum:g}"
+    return f"min {rendered} {meta.qualifier_unit}"
+
+
 class CatalogRepository(Protocol):
     def list_teams(self) -> list[TeamSummary]: ...
 
@@ -68,6 +101,10 @@ class CatalogRepository(Protocol):
     def get_batting_woba(
         self, *, player_ids: Sequence[int], season: int
     ) -> dict[int, float]: ...
+
+    def get_stat_leaders(
+        self, *, metric: LeaderMetric, season: int, minimum: float, limit: int
+    ) -> list[StatLeader]: ...
 
 
 class PostgresCatalogRepository:
@@ -130,3 +167,46 @@ class PostgresCatalogRepository:
             cursor.execute(_GET_BATTING_WOBA, (season, list(player_ids)))
             rows = cursor.fetchall()
         return {int(row[0]): float(row[1]) for row in rows}
+
+    def get_stat_leaders(
+        self, *, metric: LeaderMetric, season: int, minimum: float, limit: int
+    ) -> list[StatLeader]:
+        meta = LEADER_METRICS[metric]
+        # Take the newest snapshot row per player, then rank across players.
+        query = f"""
+            SELECT player_id, full_name, team_id, value, pa, ip
+            FROM (
+                SELECT DISTINCT ON (s.player_id)
+                       s.player_id,
+                       p.full_name,
+                       s.team_id,
+                       s.{meta.column} AS value,
+                       s.pa,
+                       s.ip
+                FROM player_season_stats s
+                JOIN players p ON p.player_id = s.player_id
+                WHERE s.season = %s
+                  AND s.stat_group = %s
+                  AND s.{meta.column} IS NOT NULL
+                  AND s.{meta.qualifier_column} >= %s
+                ORDER BY s.player_id, s.loaded_at_utc DESC
+            ) latest
+            ORDER BY value {"DESC" if meta.descending else "ASC"}, full_name
+            LIMIT %s
+        """
+        with self._conn.cursor() as cursor:
+            cursor.execute(query, (season, meta.stat_group, minimum, limit))
+            rows = cursor.fetchall()
+
+        return [
+            StatLeader(
+                rank=index,
+                player_id=int(row[0]),
+                full_name=str(row[1]),
+                team_id=int(row[2]) if row[2] is not None else None,
+                value=float(row[3]),
+                plate_appearances=int(row[4]) if row[4] is not None else None,
+                innings_pitched=float(row[5]) if row[5] is not None else None,
+            )
+            for index, row in enumerate(rows, start=1)
+        ]

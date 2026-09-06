@@ -106,6 +106,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/stats/leaders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Stat Leaders Endpoint */
+        get: operations["stat_leaders_endpoint_api_v1_stats_leaders_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/teams": {
         parameters: {
             query?: never;
@@ -354,6 +371,42 @@ export interface components {
             /** Winner Team Id */
             winner_team_id: number;
         };
+        /** StatLeader */
+        StatLeader: {
+            /** Full Name */
+            full_name: string;
+            /** Innings Pitched */
+            innings_pitched?: number | null;
+            /** Plate Appearances */
+            plate_appearances?: number | null;
+            /** Player Id */
+            player_id: number;
+            /** Rank */
+            rank: number;
+            /** Team Id */
+            team_id?: number | null;
+            /** Value */
+            value: number;
+        };
+        /** StatLeadersResponse */
+        StatLeadersResponse: {
+            /**
+             * Direction
+             * @enum {string}
+             */
+            direction: "higher_is_better" | "lower_is_better";
+            /** Leaders */
+            leaders: components["schemas"]["StatLeader"][];
+            /**
+             * Metric
+             * @enum {string}
+             */
+            metric: "woba" | "wrc_plus" | "fip" | "k_bb_ratio";
+            /** Qualifier */
+            qualifier: string;
+            /** Season */
+            season: number;
+        };
         /** TeamListResponse */
         TeamListResponse: {
             /** Teams */
@@ -573,6 +626,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SimulateGamePlayByPlayResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stat_leaders_endpoint_api_v1_stats_leaders_get: {
+        parameters: {
+            query?: {
+                metric?: "woba" | "wrc_plus" | "fip" | "k_bb_ratio";
+                season?: number | null;
+                limit?: number;
+                /** @description Playing-time qualifier (PA for hitting, IP for pitching). */
+                minimum?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatLeadersResponse"];
                 };
             };
             /** @description Validation Error */

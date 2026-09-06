@@ -58,6 +58,28 @@ class TeamRosterResponse(BaseModel):
     players: list[PlayerSummary]
 
 
+LeaderMetric = Literal["woba", "wrc_plus", "fip", "k_bb_ratio"]
+
+
+class StatLeader(BaseModel):
+    rank: int = Field(..., ge=1)
+    player_id: PositiveInt
+    full_name: str
+    team_id: int | None = None
+    value: float
+    plate_appearances: int | None = None
+    innings_pitched: float | None = None
+
+
+class StatLeadersResponse(BaseModel):
+    metric: LeaderMetric
+    season: int
+    direction: Literal["higher_is_better", "lower_is_better"]
+    #: Human-readable playing-time qualifier applied, e.g. "min 200 PA".
+    qualifier: str
+    leaders: list[StatLeader]
+
+
 class ComparePlayersRequest(BaseModel):
     left_player_id: PositiveInt
     right_player_id: PositiveInt

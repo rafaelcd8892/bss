@@ -611,6 +611,115 @@
         "title": "SimulateGameResult",
         "type": "object"
       },
+      "StatLeader": {
+        "properties": {
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "innings_pitched": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Innings Pitched"
+          },
+          "plate_appearances": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plate Appearances"
+          },
+          "player_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Player Id",
+            "type": "integer"
+          },
+          "rank": {
+            "minimum": 1.0,
+            "title": "Rank",
+            "type": "integer"
+          },
+          "team_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team Id"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "rank",
+          "player_id",
+          "full_name",
+          "value"
+        ],
+        "title": "StatLeader",
+        "type": "object"
+      },
+      "StatLeadersResponse": {
+        "properties": {
+          "direction": {
+            "enum": [
+              "higher_is_better",
+              "lower_is_better"
+            ],
+            "title": "Direction",
+            "type": "string"
+          },
+          "leaders": {
+            "items": {
+              "$ref": "#/components/schemas/StatLeader"
+            },
+            "title": "Leaders",
+            "type": "array"
+          },
+          "metric": {
+            "enum": [
+              "woba",
+              "wrc_plus",
+              "fip",
+              "k_bb_ratio"
+            ],
+            "title": "Metric",
+            "type": "string"
+          },
+          "qualifier": {
+            "title": "Qualifier",
+            "type": "string"
+          },
+          "season": {
+            "title": "Season",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "metric",
+          "season",
+          "direction",
+          "qualifier",
+          "leaders"
+        ],
+        "title": "StatLeadersResponse",
+        "type": "object"
+      },
       "TeamListResponse": {
         "properties": {
           "teams": {
@@ -961,6 +1070,99 @@
           }
         },
         "summary": "Simulate Game Play By Play Endpoint"
+      }
+    },
+    "/api/v1/stats/leaders": {
+      "get": {
+        "operationId": "stat_leaders_endpoint_api_v1_stats_leaders_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "metric",
+            "required": false,
+            "schema": {
+              "default": "woba",
+              "enum": [
+                "woba",
+                "wrc_plus",
+                "fip",
+                "k_bb_ratio"
+              ],
+              "title": "Metric",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "season",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Season"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Playing-time qualifier (PA for hitting, IP for pitching).",
+            "in": "query",
+            "name": "minimum",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Playing-time qualifier (PA for hitting, IP for pitching).",
+              "title": "Minimum"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatLeadersResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Stat Leaders Endpoint"
       }
     },
     "/api/v1/teams": {

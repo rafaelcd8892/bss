@@ -1,13 +1,19 @@
 from collections.abc import Iterator
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from baseball_sim.config import Settings, get_settings
-from baseball_sim.domain.catalog import CatalogRepository, PostgresCatalogRepository
+from baseball_sim.domain.catalog import (
+    LEADER_METRICS,
+    CatalogRepository,
+    PostgresCatalogRepository,
+    leader_qualifier_label,
+)
 from baseball_sim.domain.contracts import (
     ComparePlayersRequest,
     ComparePlayersResponse,
+    LeaderMetric,
     PlayerSummary,
     PredictGameRequest,
     PredictGameResponse,
@@ -15,6 +21,7 @@ from baseball_sim.domain.contracts import (
     SimulateGamePlayByPlayResponse,
     SimulateGameRequest,
     SimulateGameResponse,
+    StatLeadersResponse,
     TeamListResponse,
     TeamRosterResponse,
 )
@@ -59,6 +66,34 @@ def list_teams_endpoint(catalog: CatalogDependency) -> TeamListResponse:
 @router.get("/teams/{team_id}/roster", response_model=TeamRosterResponse)
 def get_team_roster_endpoint(team_id: int, catalog: CatalogDependency) -> TeamRosterResponse:
     return TeamRosterResponse(team_id=team_id, players=catalog.get_team_roster(team_id=team_id))
+
+
+@router.get("/stats/leaders", response_model=StatLeadersResponse)
+def stat_leaders_endpoint(
+    catalog: CatalogDependency,
+    settings: SettingsDependency,
+    metric: LeaderMetric = "woba",
+    season: int | None = None,
+    limit: int = Query(default=10, ge=1, le=100),
+    minimum: float | None = Query(
+        default=None,
+        ge=0,
+        description="Playing-time qualifier (PA for hitting, IP for pitching).",
+    ),
+) -> StatLeadersResponse:
+    meta = LEADER_METRICS[metric]
+    resolved_season = season if season is not None else settings.stats_season
+    resolved_minimum = minimum if minimum is not None else meta.default_minimum
+    leaders = catalog.get_stat_leaders(
+        metric=metric, season=resolved_season, minimum=resolved_minimum, limit=limit
+    )
+    return StatLeadersResponse(
+        metric=metric,
+        season=resolved_season,
+        direction="higher_is_better" if meta.descending else "lower_is_better",
+        qualifier=leader_qualifier_label(metric, resolved_minimum),
+        leaders=leaders,
+    )
 
 
 @router.get("/players/{player_id}", response_model=PlayerSummary)
