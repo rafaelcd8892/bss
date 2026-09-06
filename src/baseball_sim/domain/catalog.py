@@ -72,6 +72,21 @@ _GET_BATTING_WOBA = """
 
 
 @dataclass(frozen=True)
+class CompletedGame:
+    """A finished game with a decision, usable as a forecast outcome."""
+
+    game_pk: int
+    home_team_id: int
+    away_team_id: int
+    home_score: int
+    away_score: int
+
+    @property
+    def home_won(self) -> bool:
+        return self.home_score > self.away_score
+
+
+@dataclass(frozen=True)
 class LeaderMetricMeta:
     """How one leaderboard metric is queried and described.
 
@@ -129,6 +144,8 @@ class CatalogRepository(Protocol):
     def get_player_season_lines(
         self, *, player_id: int, season: int
     ) -> list[PlayerSeasonLine]: ...
+
+    def get_completed_games(self, *, season: int) -> list[CompletedGame]: ...
 
 
 class PostgresCatalogRepository:
@@ -334,6 +351,38 @@ class PostgresCatalogRepository:
                 )
             )
         return lines
+
+
+    def get_completed_games(self, *, season: int) -> list[CompletedGame]:
+        """Finished, decided games — the only ones a forecast can be scored against.
+
+        Filtering on "has a score" is not enough: a game in progress already carries a
+        partial score, and counting those would silently contaminate the sample.
+        """
+
+        query = """
+            SELECT game_pk, home_team_id, away_team_id, home_score, away_score
+            FROM games
+            WHERE season = %s
+              AND status_text = 'Final'
+              AND home_score IS NOT NULL
+              AND away_score IS NOT NULL
+              AND home_score <> away_score
+            ORDER BY game_date, game_pk
+        """
+        with self._conn.cursor() as cursor:
+            cursor.execute(query, (season,))
+            rows = cursor.fetchall()
+        return [
+            CompletedGame(
+                game_pk=int(row[0]),
+                home_team_id=int(row[1]),
+                away_team_id=int(row[2]),
+                home_score=int(row[3]),
+                away_score=int(row[4]),
+            )
+            for row in rows
+        ]
 
 
 def _optional_int(value: object) -> int | None:

@@ -216,3 +216,32 @@ def seeded(db: Any) -> Any:
             ],
         )
     return db
+
+
+@pytest.fixture
+def seeded_games(seeded: Any) -> Any:
+    """Games in a mix of states, so the completed-game filter has something to reject."""
+
+    with seeded.cursor() as cursor:
+        cursor.executemany(
+            """
+            INSERT INTO games (game_pk, game_date, season, game_type, status_text,
+                               home_team_id, away_team_id, home_score, away_score,
+                               snapshot_id)
+            VALUES (%s, %s, %s, 'R', %s, %s, %s, %s, %s, %s)
+            """,
+            [
+                # Two finished, decided games: the only rows a forecast can be scored on.
+                (1, "2026-09-01", SEASON, "Final", HAWKS, OTTERS, 5, 3, SNAPSHOT_ID),
+                (2, "2026-09-02", SEASON, "Final", OTTERS, HAWKS, 1, 4, SNAPSHOT_ID),
+                # In progress: already carries a partial score, must not be counted.
+                (3, "2026-09-03", SEASON, "In Progress", HAWKS, OTTERS, 2, 1, SNAPSHOT_ID),
+                # Scheduled: no score at all.
+                (4, "2026-09-04", SEASON, "Scheduled", HAWKS, OTTERS, None, None, SNAPSHOT_ID),
+                # Finished but tied: no decision to score against.
+                (5, "2026-09-05", SEASON, "Final", HAWKS, OTTERS, 2, 2, SNAPSHOT_ID),
+                # A different season.
+                (6, "2025-09-05", 2025, "Final", HAWKS, OTTERS, 7, 1, SNAPSHOT_ID),
+            ],
+        )
+    return seeded

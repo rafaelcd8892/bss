@@ -270,12 +270,15 @@ computes its own baseline in the frontend while `/predict/game` hashes the seed.
 Done when: a strong-versus-weak matchup moves the probability, the viewer and predict
 agree pregame, and nothing in the response is seed-derived without saying so.
 
-### Step 2b — Calibration
+### Step 2b — Calibration (DONE 2026-09-06)
 Why: ADR-004 says add complexity once the baseline's limits are *measured*. Two
 baselines currently ship unmeasured.
 
-- [ ] Backfill pregame probabilities for completed ingested games and compare to results.
-- [ ] Brier score plus reliability bins, written down per release.
+- [x] Backfill pregame probabilities for completed ingested games and compare to results.
+- [x] Brier score plus reliability bins, written down per release (`docs/calibration.md`).
+- [ ] Follow-up the measurement exposed: a real backtest needs game-level history so
+      profiles can be rebuilt from stats as they stood *before* each game, plus a much
+      larger sample than the 59 finished games the current window holds.
 
 Done when: there is a number, and it is in the docs.
 

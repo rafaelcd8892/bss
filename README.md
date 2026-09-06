@@ -10,6 +10,7 @@ Deterministic, sabermetrics-driven MLB simulation and analytics service.
 - `docs/simulator.md`: deterministic state-machine simulation model.
 - `docs/rulesets.md`: ruleset-driven simulator configuration.
 - `docs/sabermetrics.md`: real sabermetrics computation and the stats-provider seam.
+- `docs/calibration.md`: how the win-probability baseline is measured, and its limits.
 - `docs/cli_watch.md`: terminal watch mode behavior and controls.
 - `docs/session_2026-02-22.md`: implementation log for today’s delivered scope.
 

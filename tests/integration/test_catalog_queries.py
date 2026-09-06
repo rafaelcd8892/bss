@@ -167,3 +167,39 @@ class TestPlayerSeasonLines:
 
     def test_other_seasons_are_excluded(self, catalog: PostgresCatalogRepository) -> None:
         assert catalog.get_player_season_lines(player_id=SLUGGER, season=2020) == []
+
+
+class TestCompletedGames:
+    def test_only_finished_decided_games_are_returned(
+        self, postgres_dsn: str, seeded_games: Any
+    ) -> None:
+        del seeded_games
+        repository = PostgresCatalogRepository(dsn=postgres_dsn)
+        try:
+            games = repository.get_completed_games(season=SEASON)
+        finally:
+            repository.close()
+
+        # In progress, scheduled, tied and other-season rows are all excluded.
+        assert [game.game_pk for game in games] == [1, 2]
+
+    def test_reports_which_side_won(self, postgres_dsn: str, seeded_games: Any) -> None:
+        del seeded_games
+        repository = PostgresCatalogRepository(dsn=postgres_dsn)
+        try:
+            games = {game.game_pk: game for game in repository.get_completed_games(season=SEASON)}
+        finally:
+            repository.close()
+
+        assert games[1].home_won is True
+        assert games[2].home_won is False
+
+    def test_a_season_with_no_games_is_empty(
+        self, postgres_dsn: str, seeded_games: Any
+    ) -> None:
+        del seeded_games
+        repository = PostgresCatalogRepository(dsn=postgres_dsn)
+        try:
+            assert repository.get_completed_games(season=1999) == []
+        finally:
+            repository.close()
