@@ -1,11 +1,11 @@
 # plan.MD
 
 ## Planning Log
-- Last updated: 2026-09-05
+- Last updated: 2026-09-07
 - Owner: Rafael + coding agents
-- Project status: Real sabermetrics feed compare + the simulator (stats-provider seam);
-  Phase 7.1 live game viewer is feature-complete on synthetic data — club identity,
-  themes, scrubbable timeline, shareable replays, baseline win probability.
+- Project status: Real sabermetrics feed compare, the simulator and the Analyze
+  screens. Six of the simulator's seven factors come from ingested data; only `xwoba`
+  is still seeded, which is Step 6. Every play names both its batter and its pitcher.
 
 ## Resume Here (next session)
 Done 2026-06-19: real sabermetrics seam (ADR-014); CI fix (`master`); play-by-play API;
@@ -22,13 +22,22 @@ ingest (30 teams / 840 players / 934 stat rows / 70 games), `stats_source=postgr
 verified end to end; ingestion concurrency bounded (ADR none, see commit); batting order
 now ordered by real season wOBA (ADR-018); tests made hermetic against a local `.env`.
 
+Done 2026-09-06/07 (Execution Plan steps 1-5): integration tests against a real
+PostgreSQL; one server-side win-probability model with `/predict/game` rebuilt on it
+(ADR-020) and measured (`docs/calibration.md`); richer ingestion (`bats`/`throws`,
+widened stat columns, ingest scoped by position, playing-time floors); persisted
+simulation runs and replay by `match_id`; fielding → a league-relative `range_factor`
+(ADR-021); snapshot dedup on read (ADR-022); pitcher attribution (ADR-023).
+
 Open items, recommended order:
-1. Persist `simulation_runs` + `GET /games/{match_id}`; front `/replay/{match_id}` route.
-   (URL-based replay already works without a database; this adds history + snapshot ids.)
-3. Dashboard (Phase 7.2): compare + predict views over real sabermetrics, with charts.
-4. Pitcher attribution (simulator models defense at team level only today).
-5. Data depth: ingest fielding (→ `range_factor`) and Statcast xwOBA; ephemeral-PG
-   integration test for the Postgres stats/catalog paths.
+1. Step 6: Statcast xwOBA — the last seeded metric in Compare. Starts with the
+   terms-of-use review ADR-003 deferred to this point.
+2. Integration test for the Postgres stats-provider path (the dedup and fielding reads
+   are covered only by unit tests over hand-built rows).
+3. Serve the widened metrics already stored: OBP/SLG/OPS/ISO/BABIP/ERA/WHIP and the
+   rates, through the player endpoint, Explore, and as leaderboard metrics.
+4. Player search endpoint, to replace the club -> roster cascade in Compare.
+5. Game-level history, so calibration can be a real out-of-sample backtest.
 6. Viewer polish: runner motion along the basepath, mobile layout (<720px) review.
 Run locally: `uvicorn baseball_sim.main:app --port 8000` + `cd frontend && npm run dev`
 (or `preview_start` the `app` and `web` configs in `.claude/launch.json`).
@@ -99,7 +108,8 @@ Exit criteria:
 
 ### Phase 4: Prediction Layer (Weeks 7-9)
 - [x] Build baseline win-probability model and projection model.
-- [ ] Add calibration and drift monitoring outputs.
+- [~] Calibration outputs shipped (`docs/calibration.md`, Step 2b). Drift
+      monitoring over time is still open.
 - [ ] Register model versions and inference metadata.
 - [x] Add prediction endpoint with confidence payload.
 
@@ -154,7 +164,7 @@ Exit criteria:
 6. [x] Add roster seeder and synthetic player profile generator.
 7. [x] Wire roster loading fallback chain (API -> synthetic seeded).
 8. [x] Persist roster membership relation (`player_id` to `team_id` by snapshot) — migration `0003`.
-9. [ ] Add simulation run persistence in API endpoints.
+9. [x] Add simulation run persistence in API endpoints.
 10. [x] Fix CI trigger (now runs on `master`) — matrix expansion still open.
 
 ## Real-Data Integration (delivered 2026-06-19)
@@ -164,9 +174,12 @@ Exit criteria:
 - [x] Ingest per-player season stats and compute sabermetrics (`--include-player-stats`).
 - [x] Migration `0002`: raw stat components + computed metrics in `player_season_stats`.
 - [x] Postgres read provider behind `BASEBALL_STATS_SOURCE=postgres`.
-- [ ] Ingest fielding data to replace neutral `range_factor`.
+- [x] Ingest fielding data to replace neutral `range_factor` (ADR-021).
 - [ ] Ingest Statcast expected stats to replace synthetic `xwoba`.
-- [ ] Integration test of the Postgres stats path against ephemeral PostgreSQL.
+- [ ] Integration test of the Postgres **stats provider** path. The integration suite
+      covers catalog reads, ingest persistence and simulation runs, but not
+      `build_stat_line_provider` — so the snapshot dedup (ADR-022) and the fielding
+      reads are proven only against hand-built rows.
 
 ## Phase 7: Web Interface (started 2026-06-19)
 Goal: an attractive web app — a live game viewer first, then an analytics dashboard.
@@ -185,7 +198,7 @@ Stack decision:
 - [x] Include team/player names (not just IDs) in catalog responses.
 - [x] Add CORS middleware (configurable via `BASEBALL_CORS_ALLOW_ORIGINS`) and an
       optional static mount that serves `frontend/dist` when present.
-- [ ] Persist `simulation_runs` and expose `GET` by `match_id` for shareable replay.
+- [x] Persist `simulation_runs` and expose `GET` by `match_id` for shareable replay.
 
 ### Phase 7.1 — Live game viewer
 - [x] Scaffold React + Vite + TS + Tailwind in `frontend/`; typed API client generated
@@ -195,9 +208,11 @@ Stack decision:
 - [x] Batter attribution: thread lineups through the simulator so each play names the
       batter (rotating 1-9, persisted across innings). Layered lineup provider — real
       from the persisted roster, synthetic fallback. Pure labeling; determinism intact.
-- [ ] Replay-by-match_id route (depends on `simulation_runs` persistence).
-- [ ] Team/player pickers backed by the catalog endpoints (replace hardcoded labels).
-- [ ] Pitcher attribution (simulator models defense at team level only today).
+- [x] Replay-by-match_id route (`/replay/:matchId`).
+- [x] Team pickers backed by the catalog endpoints. A *player* picker still wants the
+      search endpoint below.
+- [x] Pitcher attribution (ADR-023). Defense is still modelled at team level: the
+      pitcher is named, but his own quality does not yet shape the plate appearance.
 
 ### Phase 7.2 — Analytics dashboard
 All three Analyze views and the Explore screens are built and covered by tests.
