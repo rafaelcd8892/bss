@@ -273,11 +273,17 @@ def get_player_season_endpoint(
     if player is None:
         raise HTTPException(status_code=404, detail=f"player {player_id} not found")
 
+    available = catalog.get_player_seasons(player_id=player_id)
+    # Default to the configured season, but fall back to the newest the player actually
+    # has: a career backfill often ends before the current year for a retired player.
     resolved_season = season if season is not None else settings.stats_season
+    if season is None and available and resolved_season not in available:
+        resolved_season = available[0]
     return PlayerSeasonResponse(
         player=player,
         season=resolved_season,
         lines=catalog.get_player_season_lines(player_id=player_id, season=resolved_season),
+        available_seasons=available,
     )
 
 

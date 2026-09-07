@@ -17,6 +17,11 @@ class FakePlayerCatalog:
         self.player = player
         self.lines = lines
         self.requested: list[tuple[int, int]] = []
+        self.seasons: list[int] = [2026]
+
+    def get_player_seasons(self, *, player_id: int) -> list[int]:
+        del player_id
+        return self.seasons
 
     def list_teams(self) -> list:
         return []
@@ -83,7 +88,7 @@ def test_returns_identity_and_season_lines() -> None:
 
 def test_unknown_player_is_404() -> None:
     catalog = FakePlayerCatalog(player=None, lines=[])
-    response = _client(catalog).get("/api/v1/players/1/season")
+    response = _client(catalog).get("/api/v1/players/665742/season")
     assert response.status_code == 404
     # A missing player must not trigger a stats lookup.
     assert catalog.requested == []
@@ -99,3 +104,28 @@ def test_season_can_be_overridden() -> None:
     catalog = FakePlayerCatalog(player=SOTO, lines=[])
     _client(catalog).get("/api/v1/players/665742/season?season=2025")
     assert catalog.requested == [(665742, 2025)]
+
+
+def test_the_seasons_a_player_actually_has_are_offered() -> None:
+    """A career backfill is only useful if a client can find out which years exist."""
+
+    catalog = FakePlayerCatalog(player=SOTO, lines=[])
+    catalog.seasons = [2026, 2025, 2019]
+    payload = _client(catalog).get("/api/v1/players/665742/season").json()
+    assert payload["available_seasons"] == [2026, 2025, 2019]
+
+
+def test_a_player_whose_career_ended_lands_on_his_last_season() -> None:
+    """Defaulting to the configured season would show a retired player as empty."""
+
+    catalog = FakePlayerCatalog(player=SOTO, lines=[])
+    catalog.seasons = [2018, 2017]
+    payload = _client(catalog).get("/api/v1/players/665742/season").json()
+    assert payload["season"] == 2018
+
+
+def test_an_explicit_season_is_never_second_guessed() -> None:
+    catalog = FakePlayerCatalog(player=SOTO, lines=[])
+    catalog.seasons = [2026]
+    payload = _client(catalog).get("/api/v1/players/665742/season?season=1999").json()
+    assert payload["season"] == 1999

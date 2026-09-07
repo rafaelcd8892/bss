@@ -52,13 +52,21 @@ export function useTeamProfile(teamId: number | null): Loadable<TeamProfile> {
   }, [teamId]);
 }
 
-export function usePlayerSeason(playerId: number | null): Loadable<PlayerSeason> {
+export function usePlayerSeason(
+  playerId: number | null,
+  season?: number | null,
+): Loadable<PlayerSeason> {
   return useResource(async () => {
     if (playerId === null) return null;
     const { data, error } = await api.GET("/api/v1/players/{player_id}/season", {
-      params: { path: { player_id: playerId } },
+      params: {
+        path: { player_id: playerId },
+        // Omitted rather than sent as null: the server then picks the configured
+        // season, or the player's most recent one if his career ended before it.
+        query: season ? { season } : undefined,
+      },
     });
     if (error || !data) return null;
     return data;
-  }, [playerId]);
+  }, [playerId, season]);
 }

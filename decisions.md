@@ -835,7 +835,61 @@ When adding a new decision, use this format:
 
 ---
 
+## ADR-030: Keep Every Split, and Ingest Whole Careers
+- Date: 2026-09-07
+- Status: Accepted
+- Context:
+  - The parser kept only the first split of each stat group. The MLB Stats API leads
+    with the **season total**, whose team is null, so a traded player was stored with
+    no team — and the serving layer only aggregates rows that carry one. Every traded
+    player therefore counted toward no club's profile at all. It looked like working
+    data; it was a silent hole.
+  - Separately, `yearByYear` returns a player's whole career in a single request. A
+    full backfill costs the same number of requests as one season, which makes the
+    history question a schema question rather than a budget one.
+- Decision:
+  - Keep **every** split. A traded player yields a row per club plus the season total,
+    because the two answer different questions: a club's profile wants his line with
+    that club, while a leaderboard and a player rating want his year.
+  - Put the team in the key. It stays nullable, since NULL is meaningful — it *is* the
+    season total — so the key becomes a unique index over `COALESCE(team_id, 0)`
+    rather than a primary key. Team id 0 does not exist in the API, so it cannot
+    collide with a club.
+  - Make every read say which one it wants. Player-level reads order by
+    `team_id IS NULL DESC` to prefer the total, falling back to the single club row for
+    a player who was never traded. Club-level reads filter to rows that carry a team.
+    A club is never credited with the total, which would count a traded player twice.
+  - Read the season from each split rather than from the request. A career arrives in
+    one payload; stamping it with the requested season would collapse a decade onto one
+    year. Expected (Statcast) stats have no year-by-year view, so they stay pinned to
+    the requested season and are not attached to older lines.
+  - Ship history behind `--history` rather than making it the default. It writes a row
+    per season per club, and MLBAM's terms (ADR-025) make a bulk backfill a deliberate
+    act rather than a routine one.
+- Consequences:
+  - The current season went from 837 stat rows to 1,064: 109 season totals for traded
+    players and 955 club lines. Verified that a club's rows sum exactly to the total.
+  - The backfill produced 9,495 stat rows over 19 seasons (2008-2026) and 8,051
+    fielding rows, in under a minute and under 4 MB. Max Scherzer carries 19 seasons.
+  - A player's page can now show any season he has, and the API reports
+    `available_seasons` so a client does not have to guess. A player whose career ended
+    before the configured season lands on his last one instead of looking empty.
+  - Mutation testing found a real gap while checking this: the fielding parser's
+    multi-split handling had no test with teeth, so a utility player silently losing a
+    position would not have been caught. Now covered.
+- Alternatives considered:
+  - Storing only per-club splits and deriving the total by summing (correct
+    arithmetically, but every player-level read would have to aggregate, and a player
+    with no club-bearing split would vanish).
+  - Storing only the total, as before (the status quo, which is the bug).
+  - A sentinel team id in a real primary key (readable in the schema, but it puts a
+    fake club in the data itself rather than only in the index expression).
+
+---
+
 ## Change Log
+- 2026-09-07: Added ADR-030; every stat split is kept, so traded players count toward
+  their clubs, and `--history` backfills whole careers.
 - 2026-09-07: Closed ADR-028's open gap — the web replay route now uses the faithful
   replay endpoint, and club logos and player headshots are referenced per ADR-025.
 - 2026-09-07: Added ADR-029; the event model is fitted against the ingested season

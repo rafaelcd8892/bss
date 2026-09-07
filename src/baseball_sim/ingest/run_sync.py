@@ -18,6 +18,16 @@ def parse_args() -> argparse.Namespace:
         help="Also ingest per-player season stats and compute sabermetrics.",
     )
     parser.add_argument(
+        "--history",
+        action="store_true",
+        help=(
+            "Fetch each player's whole career instead of one season. Costs no extra "
+            "requests — the career arrives in the same call — but writes a row per "
+            "season per club. Expected (Statcast) stats have no year-by-year view, so "
+            "they stay pinned to --season."
+        ),
+    )
+    parser.add_argument(
         "--all-stat-groups",
         action="store_true",
         help=(
@@ -37,6 +47,7 @@ async def _main() -> None:
         season=args.season,
         include_player_stats=args.include_player_stats,
         all_stat_groups=args.all_stat_groups,
+        history=args.history,
     )
     print(
         json.dumps(

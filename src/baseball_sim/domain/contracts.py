@@ -127,6 +127,9 @@ class PlayerSeasonResponse(BaseModel):
     player: PlayerSummary
     season: int
     lines: list[PlayerSeasonLine]
+    #: Every season with an ingested line, newest first, so a client can offer them
+    #: without guessing which years exist.
+    available_seasons: list[int] = []
 
 
 class TeamProfileListResponse(BaseModel):

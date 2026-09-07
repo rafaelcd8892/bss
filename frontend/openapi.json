@@ -515,6 +515,14 @@
       },
       "PlayerSeasonResponse": {
         "properties": {
+          "available_seasons": {
+            "default": [],
+            "items": {
+              "type": "integer"
+            },
+            "title": "Available Seasons",
+            "type": "array"
+          },
           "lines": {
             "items": {
               "$ref": "#/components/schemas/PlayerSeasonLine"

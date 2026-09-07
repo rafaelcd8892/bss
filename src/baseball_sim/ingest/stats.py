@@ -229,7 +229,7 @@ def normalize_player_fielding(
             records.append(
                 PlayerSeasonFieldingRecord(
                     player_id=player_id,
-                    season=season,
+                    season=_split_season(split, default=season),
                     team_id=_split_team_id(split),
                     line=line,
                     fielding_percentage=_round(compute_fielding_percentage(line), 4),
@@ -380,33 +380,62 @@ def normalize_player_stats(
             continue
         group = group_block.get("group")
         group_name = group.get("displayName") if isinstance(group, dict) else None
-        split = _first_split(group_block.get("splits"))
-        if split is None:
+        if group_name not in ("hitting", "pitching"):
             continue
-        stat = split.get("stat")
-        if not isinstance(stat, dict):
+        splits = group_block.get("splits")
+        if not isinstance(splits, list):
             continue
-        team_id = _split_team_id(split)
 
-        if group_name == "hitting":
-            records.append(
-                _batting_record(
-                    player_id=player_id,
-                    season=season,
-                    team_id=team_id,
-                    line=parse_batting_line(stat),
+        # Every split, not just the first. A traded player has a line with each club
+        # plus a season total whose team is null, and both are wanted: the per-club
+        # lines are what a team profile aggregates, the total is what a leaderboard
+        # and a player rating read.
+        for split in splits:
+            if not isinstance(split, dict):
+                continue
+            stat = split.get("stat")
+            if not isinstance(stat, dict):
+                continue
+            split_season = _split_season(split, default=season)
+            team_id = _split_team_id(split)
+            if group_name == "hitting":
+                records.append(
+                    _batting_record(
+                        player_id=player_id,
+                        season=split_season,
+                        team_id=team_id,
+                        line=parse_batting_line(stat),
+                    )
                 )
-            )
-        elif group_name == "pitching":
-            records.append(
-                _pitching_record(
-                    player_id=player_id,
-                    season=season,
-                    team_id=team_id,
-                    line=parse_pitching_line(stat),
+            else:
+                records.append(
+                    _pitching_record(
+                        player_id=player_id,
+                        season=split_season,
+                        team_id=team_id,
+                        line=parse_pitching_line(stat),
+                    )
                 )
-            )
     return records
+
+
+def _split_season(split: dict[str, Any], *, default: int) -> int:
+    """The season a split belongs to.
+
+    A single-season request repeats the season we asked for, but a year-by-year one
+    returns a whole career in one payload — taking the requested season there would
+    stamp every year of it with the same label.
+    """
+
+    value = split.get("season")
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError:
+            return default
+    return default
 
 
 def _first_split(splits: Any) -> dict[str, Any] | None:

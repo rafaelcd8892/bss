@@ -226,9 +226,9 @@ class PostgresIngestRepository:
                     fielding_percentage, range_factor_per_nine, source_snapshot_id
                 )
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (player_id, season, position, source_snapshot_id) DO UPDATE
-                SET team_id = EXCLUDED.team_id,
-                    games = EXCLUDED.games,
+                ON CONFLICT (player_id, season, position, COALESCE(team_id, 0),
+                             source_snapshot_id) DO UPDATE
+                SET games = EXCLUDED.games,
                     games_started = EXCLUDED.games_started,
                     innings = EXCLUDED.innings,
                     put_outs = EXCLUDED.put_outs,
@@ -311,8 +311,21 @@ _PLAYER_SEASON_STATS_COLUMNS = (
     "source_snapshot_id",
 )
 
-#: Everything except the composite key is refreshed on conflict.
-_PLAYER_SEASON_STATS_KEY = ("player_id", "season", "source_snapshot_id", "stat_group")
+#: Everything except the composite key is refreshed on conflict. The key matches the
+#: expression index from migration 0009: the team is part of it, and NULL — the season
+#: total across clubs — collapses to 0 so it can take part in a unique index.
+_PLAYER_SEASON_STATS_KEY = (
+    "player_id",
+    "season",
+    "stat_group",
+    "COALESCE(team_id, 0)",
+    "source_snapshot_id",
+)
+#: The columns of that key, for deciding what the upsert may overwrite. `team_id` is
+#: not here: it is keyed on, so it can never differ between the old row and the new.
+_PLAYER_SEASON_STATS_KEY_COLUMNS = frozenset(
+    {"player_id", "season", "stat_group", "team_id", "source_snapshot_id"}
+)
 
 _PLAYER_SEASON_STATS_SQL = """
     INSERT INTO player_season_stats ({columns})
@@ -327,7 +340,7 @@ _PLAYER_SEASON_STATS_SQL = """
     updates=",\n        ".join(
         f"{column} = EXCLUDED.{column}"
         for column in _PLAYER_SEASON_STATS_COLUMNS
-        if column not in _PLAYER_SEASON_STATS_KEY
+        if column not in _PLAYER_SEASON_STATS_KEY_COLUMNS
     ),
 )
 

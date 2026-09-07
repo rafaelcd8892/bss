@@ -40,9 +40,8 @@ Open items, recommended order:
    known bias, it does not demonstrate skill. The attack/prevention weights are still
    unfitted: they are shape rather than scale, and nothing measures them yet.
 4. Player search endpoint, to replace the club -> roster cascade in Compare.
-5. Full career history via `yearByYear` — one request returns a whole career, but the
-   parser reads only the first split and the primary key has no team, so a traded
-   player's three splits collide. Both need deciding first.
+5. Serve the history that is now ingested beyond the player page: career trajectory
+   charts, and a season selector on Explore's club pages.
 6. Game-level history, so calibration can be a real out-of-sample backtest.
 7. Viewer polish: runner motion along the basepath, mobile layout (<720px) review.
 Run locally: `uvicorn baseball_sim.main:app --port 8000` + `cd frontend && npm run dev`

@@ -1,4 +1,4 @@
-import { Link, useOutletContext, useParams } from "react-router-dom";
+import { Link, useOutletContext, useParams, useSearchParams } from "react-router-dom";
 import type { components } from "../../api/schema";
 import type { ShellContext } from "../../components/AppShell";
 import { Card } from "../../components/Card";
@@ -9,12 +9,53 @@ import { usePlayerSeason } from "./hooks";
 
 type Line = components["schemas"]["PlayerSeasonLine"];
 
+/**
+ * The seasons this player actually has, rather than a free year input.
+ *
+ * The list comes from the API, so it can only offer years with an ingested line —
+ * picking one that turns out to be empty is not a state worth building.
+ */
+function SeasonPicker({
+  season,
+  available,
+  onChange,
+}: {
+  season: number;
+  available: number[] | undefined;
+  onChange: (season: number) => void;
+}) {
+  // Tolerates an API that predates the field rather than blanking the page.
+  if (!available || available.length <= 1) {
+    return <span className="ml-auto shrink-0 text-xs text-faint">season {season}</span>;
+  }
+  return (
+    <label className="ml-auto flex shrink-0 items-center gap-1.5 text-xs text-faint">
+      season
+      <select
+        value={season}
+        onChange={(event) => onChange(Number(event.target.value))}
+        className="rounded-md border border-line bg-surface px-1.5 py-1 text-xs text-ink outline-none"
+      >
+        {available.map((year) => (
+          <option key={year} value={year}>
+            {year}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 export function PlayerPage() {
   const { dark } = useOutletContext<ShellContext>();
   const { playerId } = useParams();
   const id = Number(playerId);
   const valid = Number.isFinite(id) && id > 0;
-  const { data, loading, error } = usePlayerSeason(valid ? id : null);
+  // The season lives in the URL, so a particular year of a career is linkable.
+  const [params, setParams] = useSearchParams();
+  const requested = Number(params.get("season"));
+  const season = Number.isFinite(requested) && requested > 0 ? requested : null;
+  const { data, loading, error } = usePlayerSeason(valid ? id : null, season);
 
   if (!valid || error) {
     return (
@@ -71,12 +112,22 @@ export function PlayerPage() {
               {[
                 data.player.primary_position,
                 teamId !== null ? teamLabel(teamId).name : null,
-                `season ${data.season}`,
               ]
                 .filter(Boolean)
                 .join(" · ")}
             </p>
           </div>
+          <SeasonPicker
+            season={data.season}
+            available={data.available_seasons}
+            onChange={(next) =>
+              setParams((previous) => {
+                const query = new URLSearchParams(previous);
+                query.set("season", String(next));
+                return query;
+              })
+            }
+          />
         </div>
       </Card>
 

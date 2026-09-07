@@ -46,7 +46,7 @@ _GET_PITCHING_WORKLOAD = """
            player_id, ip, games_played, games_started, fip
     FROM player_season_stats
     WHERE season = %s AND stat_group = 'pitching' AND player_id = ANY(%s)
-    ORDER BY player_id, loaded_at_utc DESC
+    ORDER BY player_id, team_id IS NULL DESC, loaded_at_utc DESC
 """
 
 _GET_PLAYER = """
@@ -78,6 +78,10 @@ _GET_TEAM_ROSTER = """
 
 # Season wOBA for a set of players, newest snapshot per player. Used to order a
 # batting lineup by hitting quality instead of alphabetically.
+# A season holds one row per club plus a total whose team is null (migration 0009).
+# A player-level read wants the total: a traded player's half-season with one club is
+# not his year. `team_id IS NULL DESC` puts the total first, and a player who was never
+# traded simply has no total to prefer, so his single club row wins.
 _GET_BATTING_WOBA = """
     SELECT DISTINCT ON (player_id) player_id, woba
     FROM player_season_stats
@@ -85,7 +89,7 @@ _GET_BATTING_WOBA = """
       AND stat_group = 'hitting'
       AND woba IS NOT NULL
       AND player_id = ANY(%s)
-    ORDER BY player_id, loaded_at_utc DESC
+    ORDER BY player_id, team_id IS NULL DESC, loaded_at_utc DESC
 """
 
 
@@ -171,6 +175,8 @@ class CatalogRepository(Protocol):
         self, *, player_id: int, season: int
     ) -> list[PlayerSeasonLine]: ...
 
+    def get_player_seasons(self, *, player_id: int) -> list[int]: ...
+
     def get_completed_games(self, *, season: int) -> list[CompletedGame]: ...
 
     def get_season_schedule(self, *, season: int) -> list[ScheduledGame]: ...
@@ -241,7 +247,8 @@ class PostgresCatalogRepository:
         self, *, metric: LeaderMetric, season: int, minimum: float, limit: int
     ) -> list[StatLeader]:
         meta = LEADER_METRICS[metric]
-        # Take the newest snapshot row per player, then rank across players.
+        # The season total per player, then rank across players. A leaderboard is about
+        # the year, so a traded player's half with one club must not stand in for it.
         query = f"""
             SELECT player_id, full_name, team_id, value, pa, ip
             FROM (
@@ -258,7 +265,7 @@ class PostgresCatalogRepository:
                   AND s.stat_group = %s
                   AND s.{meta.column} IS NOT NULL
                   AND s.{meta.qualifier_column} >= %s
-                ORDER BY s.player_id, s.loaded_at_utc DESC
+                ORDER BY s.player_id, s.team_id IS NULL DESC, s.loaded_at_utc DESC
             ) latest
             ORDER BY value {"DESC" if meta.descending else "ASC"}, full_name
             LIMIT %s
@@ -309,10 +316,10 @@ class PostgresCatalogRepository:
         """
 
         query = f"""
-            SELECT DISTINCT ON (player_id, stat_group) {SEASON_STATS_COLUMNS}
+            SELECT DISTINCT ON (player_id, stat_group, team_id) {SEASON_STATS_COLUMNS}
             FROM player_season_stats
             WHERE season = %s AND team_id IS NOT NULL
-            ORDER BY player_id, stat_group, loaded_at_utc DESC
+            ORDER BY player_id, stat_group, team_id, loaded_at_utc DESC
         """
         with self._conn.cursor() as cursor:
             cursor.execute(query, (season,))
@@ -357,10 +364,10 @@ class PostgresCatalogRepository:
         """
 
         query = f"""
-            SELECT DISTINCT ON (player_id, position) {SEASON_FIELDING_COLUMNS}
+            SELECT DISTINCT ON (player_id, position, team_id) {SEASON_FIELDING_COLUMNS}
             FROM player_season_fielding
             WHERE season = %s AND team_id IS NOT NULL
-            ORDER BY player_id, position, loaded_at_utc DESC
+            ORDER BY player_id, position, team_id, loaded_at_utc DESC
         """
         with self._conn.cursor() as cursor:
             cursor.execute(query, (season,))
@@ -371,10 +378,27 @@ class PostgresCatalogRepository:
             by_team.setdefault(int(row[1]), []).append(fielding_line_from_row(row))
         return by_team
 
+    def get_player_seasons(self, *, player_id: int) -> list[int]:
+        """Every season this player has an ingested line for, newest first.
+
+        Only meaningful once a career backfill has run; a single-season database
+        answers with the one season it holds.
+        """
+
+        with self._conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT DISTINCT season FROM player_season_stats
+                WHERE player_id = %s ORDER BY season DESC
+                """,
+                (player_id,),
+            )
+            return [int(row[0]) for row in cursor.fetchall()]
+
     def get_player_season_lines(
         self, *, player_id: int, season: int
     ) -> list[PlayerSeasonLine]:
-        """A player's stored season lines, newest snapshot per stat group."""
+        """A player's season line per stat group — the whole year, not one club's half."""
 
         query = """
             SELECT DISTINCT ON (stat_group)
@@ -383,7 +407,7 @@ class PostgresCatalogRepository:
                    woba, wrc_plus, fip, k_bb_ratio
             FROM player_season_stats
             WHERE player_id = %s AND season = %s
-            ORDER BY stat_group, loaded_at_utc DESC
+            ORDER BY stat_group, team_id IS NULL DESC, loaded_at_utc DESC
         """
         with self._conn.cursor() as cursor:
             cursor.execute(query, (player_id, season))

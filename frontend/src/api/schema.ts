@@ -412,6 +412,11 @@ export interface components {
         };
         /** PlayerSeasonResponse */
         PlayerSeasonResponse: {
+            /**
+             * Available Seasons
+             * @default []
+             */
+            available_seasons: number[];
             /** Lines */
             lines: components["schemas"]["PlayerSeasonLine"][];
             player: components["schemas"]["PlayerSummary"];

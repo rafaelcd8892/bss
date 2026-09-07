@@ -33,6 +33,9 @@ STAT_GROUPS = ("hitting", "pitching", "fielding")
 #: The API stat type carrying Statcast expected outcomes. It is a second view of the
 #: same group, not a second source: xwOBA arrives from the endpoint we already call.
 EXPECTED_STAT_TYPE = "expectedStatistics"
+#: One request returns a player's whole career instead of one season, so a full
+#: backfill costs the same number of requests as a single season does.
+HISTORY_STAT_TYPE = "yearByYear"
 #: Groups that have an expected view. Fielding does not.
 _EXPECTED_GROUPS = ("hitting", "pitching")
 
@@ -42,17 +45,26 @@ _TWO_WAY_POSITION = "TWP"
 
 
 def stat_requests_for(
-    position: str | None, *, fetch_all: bool, include_expected: bool = True
+    position: str | None,
+    *,
+    fetch_all: bool,
+    include_expected: bool = True,
+    history: bool = False,
 ) -> tuple[tuple[str, str], ...]:
     """The ``(group, stat_type)`` pairs worth requesting for a player.
 
     Expected stats are a separate request per group because the API returns them
     under a separate stat type. That is roughly a third more requests, so it can be
     turned off for a run that only needs the counting lines.
+
+    ``history`` swaps the counting request from one season to the whole career. It
+    costs no extra requests — the career arrives in the same call — but the expected
+    stats have no year-by-year view, so those stay pinned to the requested season.
     """
 
     groups = stat_groups_for(position, fetch_all=fetch_all)
-    requests = [(group, "season") for group in groups]
+    counting = HISTORY_STAT_TYPE if history else "season"
+    requests = [(group, counting) for group in groups]
     if include_expected:
         requests += [
             (group, EXPECTED_STAT_TYPE) for group in groups if group in _EXPECTED_GROUPS
@@ -153,6 +165,7 @@ async def ingest_mlb_window(
     season: int,
     include_player_stats: bool = False,
     all_stat_groups: bool = False,
+    history: bool = False,
     settings: Settings | None = None,
     repository: IngestRepository | None = None,
     client: SupportsMLBClient | None = None,
@@ -180,6 +193,7 @@ async def ingest_mlb_window(
                     sport_id=app_settings.mlb_stats_sport_id,
                     include_player_stats=include_player_stats,
                     all_stat_groups=all_stat_groups,
+                    history=history,
                     max_concurrency=app_settings.mlb_stats_max_concurrency,
                 )
         else:
@@ -193,6 +207,7 @@ async def ingest_mlb_window(
                 sport_id=app_settings.mlb_stats_sport_id,
                 include_player_stats=include_player_stats,
                 all_stat_groups=all_stat_groups,
+                history=history,
                 max_concurrency=app_settings.mlb_stats_max_concurrency,
             )
         repo.commit()
@@ -216,6 +231,7 @@ async def _ingest_with_client(
     sport_id: int,
     include_player_stats: bool,
     all_stat_groups: bool = False,
+    history: bool = False,
     max_concurrency: int = 8,
 ) -> IngestionResult:
     teams_payload = await client.get_teams(sport_id=sport_id, season=season)
@@ -288,6 +304,7 @@ async def _ingest_with_client(
             players=players,
             season=season,
             all_stat_groups=all_stat_groups,
+            history=history,
             max_concurrency=max_concurrency,
         )
 
@@ -339,6 +356,7 @@ async def _ingest_player_stats(
     season: int,
     all_stat_groups: bool = False,
     include_expected_stats: bool = True,
+    history: bool = False,
     max_concurrency: int = 8,
 ) -> tuple[str, int, int]:
     by_id = {player.player_id: player for player in players}
@@ -349,6 +367,7 @@ async def _ingest_player_stats(
             by_id[player_id].primary_position,
             fetch_all=all_stat_groups,
             include_expected=include_expected_stats,
+            history=history,
         )
     ]
     raw_payloads: dict[str, dict[str, Any]] = {}
@@ -385,7 +404,7 @@ async def _ingest_player_stats(
                 normalize_player_stats(player_id=player_id, season=season, payload=payload)
             )
 
-    records = [_with_expected(record, expected) for record in records]
+    records = [_with_expected(record, expected, season=season) for record in records]
 
     stats_snapshot = snapshot_store.write_snapshot(
         source_system=SOURCE_SYSTEM,
@@ -409,11 +428,15 @@ async def _ingest_player_stats(
 def _with_expected(
     record: PlayerSeasonStatRecord,
     expected: Mapping[tuple[int, str], ExpectedStats],
+    *,
+    season: int,
 ) -> PlayerSeasonStatRecord:
     """Attach the Statcast view to the counting line it belongs to."""
 
     measured = expected.get((record.player_id, record.stat_group))
-    if measured is None:
+    # Expected stats are only fetched for the requested season, so a career backfill
+    # must not stamp 2019's line with 2026's xwOBA.
+    if measured is None or record.season != season:
         return record
     return replace(
         record,

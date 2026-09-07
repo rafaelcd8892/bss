@@ -86,21 +86,25 @@ def build_stat_line_provider_from_rows(
     team_pitching: dict[int, list[RawPitchingLine]] = {}
     expected_woba: dict[int, float] = {}
 
-    # A season accumulates one row per player per snapshot, so the same player is read
-    # back several times with progressively fuller lines. Summing them all would blend
-    # a stale April line into September's totals, so the latest row wins outright.
+    # Two different questions read the same rows. A club's profile wants each player's
+    # line *with that club*, so it takes the rows that carry a team. A player's rating
+    # wants his year, so it takes the season total — the row whose team is null — and
+    # falls back to his only club line when he was never traded (migration 0009).
     for player_id, team_id, xwoba, line in _latest_stat_lines(rows):
+        is_total = team_id is None
         if isinstance(line, RawBattingLine):
-            # Only the hitting row. The pitching row carries xwOBA *against*, where a
-            # low number is elite — feeding it into a metric the compare table ranks
-            # higher-is-better would say an ace hits worse than a replacement bat.
-            if xwoba is not None:
-                expected_woba[player_id] = xwoba
-            batting_lines[player_id] = line
+            if is_total or player_id not in batting_lines:
+                batting_lines[player_id] = line
+                # The pitching row carries xwOBA *against*, where a low number is
+                # elite — feeding it into a metric the compare table ranks
+                # higher-is-better would say an ace hits worse than a replacement bat.
+                if xwoba is not None:
+                    expected_woba[player_id] = xwoba
             if team_id is not None:
                 team_batting.setdefault(team_id, []).append(line)
         else:
-            pitching_lines[player_id] = line
+            if is_total or player_id not in pitching_lines:
+                pitching_lines[player_id] = line
             if team_id is not None:
                 team_pitching.setdefault(team_id, []).append(line)
 
@@ -121,9 +125,13 @@ def build_stat_line_provider_from_rows(
 def _latest_stat_lines(
     rows: list[tuple[Any, ...]],
 ) -> list[tuple[int, int | None, float | None, RawBattingLine | RawPitchingLine]]:
-    """Keep the last row per ``(player, stat_group)``, in load order."""
+    """Keep the last row per ``(player, stat_group, team)``, in load order.
 
-    latest: dict[tuple[int, str], tuple[int, int | None, float | None, Any]] = {}
+    The team is part of the key because a traded player has a line with each club and
+    a season total; collapsing them would silently discard all but one.
+    """
+
+    latest: dict[tuple[int, str, int | None], tuple[int, int | None, float | None, Any]] = {}
     for row in rows:
         stat_group = str(row[2])
         if stat_group not in ("hitting", "pitching"):
@@ -136,7 +144,7 @@ def _latest_stat_lines(
             if stat_group == "hitting"
             else pitching_line_from_row(row)
         )
-        latest[(player_id, stat_group)] = (player_id, team_id, xwoba, line)
+        latest[(player_id, stat_group, team_id)] = (player_id, team_id, xwoba, line)
     return list(latest.values())
 
 
@@ -145,12 +153,12 @@ def _fielding_from_rows(
 ) -> tuple[dict[int, list[RawFieldingLine]], dict[str, float] | None]:
     """Group fielding splits by club and derive the league's per-position baseline."""
 
-    latest: dict[tuple[int, str], tuple[int | None, RawFieldingLine]] = {}
+    latest: dict[tuple[int, str, int | None], tuple[int | None, RawFieldingLine]] = {}
     for row in rows:
         player_id = int(row[0])
         team_id = int(row[1]) if row[1] is not None else None
         line = fielding_line_from_row(row)
-        latest[(player_id, line.position)] = (team_id, line)
+        latest[(player_id, line.position, team_id)] = (team_id, line)
 
     team_fielding: dict[int, list[RawFieldingLine]] = {}
     for team_id, line in latest.values():
