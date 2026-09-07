@@ -1,8 +1,9 @@
-import { useEffect, useId, useRef, useState } from "react";
-import { api } from "../../api/client";
-import type { components } from "../../api/schema";
-import { PlayerHeadshot } from "../../components/PlayerHeadshot";
-import { TeamLogo } from "../../components/TeamLogo";
+import { useCallback, useEffect, useId, useState } from "react";
+import { api } from "../api/client";
+import type { components } from "../api/schema";
+import { PlayerHeadshot } from "./PlayerHeadshot";
+import { TeamLogo } from "./TeamLogo";
+import { useCombobox } from "./useCombobox";
 
 type Result = components["schemas"]["PlayerSearchResult"];
 
@@ -18,12 +19,16 @@ const DEBOUNCE_MS = 200;
  */
 export function PlayerSearch({
   label,
+  inputLabel,
   accent,
   selected,
   onSelect,
   dark,
 }: {
   label: string;
+  /** Accessible name for the box. Defaults to the visible label plus "player", which
+   *  reads well for a side ("left player") but not for a label that already says it. */
+  inputLabel?: string;
   accent?: string;
   selected: { playerId: number; name: string; teamId: number | null } | null;
   onSelect: (result: Result | null) => void;
@@ -34,7 +39,21 @@ export function PlayerSearch({
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const listId = useId();
-  const box = useRef<HTMLDivElement>(null);
+
+  const choose = useCallback(
+    (result: Result) => {
+      onSelect(result);
+      setQuery("");
+      setOpen(false);
+    },
+    [onSelect],
+  );
+  const dismiss = useCallback(() => setOpen(false), []);
+  const { active, setActive, onKeyDown, container } = useCombobox({
+    items: results,
+    onChoose: choose,
+    onDismiss: dismiss,
+  });
 
   useEffect(() => {
     const trimmed = query.trim();
@@ -55,24 +74,9 @@ export function PlayerSearch({
     return () => window.clearTimeout(timer);
   }, [query]);
 
-  // A click elsewhere closes the list; without it the results hang over the page.
-  useEffect(() => {
-    function onPointerDown(event: MouseEvent) {
-      if (box.current && !box.current.contains(event.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", onPointerDown);
-    return () => document.removeEventListener("mousedown", onPointerDown);
-  }, []);
-
-  function choose(result: Result): void {
-    onSelect(result);
-    setQuery("");
-    setOpen(false);
-  }
-
   return (
     <div
-      ref={box}
+      ref={container}
       className="relative rounded-md border border-line bg-surface p-2.5"
       style={accent ? { borderLeftColor: accent, borderLeftWidth: 3 } : undefined}
     >
@@ -96,7 +100,7 @@ export function PlayerSearch({
           role="combobox"
           aria-expanded={open}
           aria-controls={listId}
-          aria-label={`${label} player`}
+          aria-label={inputLabel ?? `${label} player`}
           placeholder="search by name…"
           value={query}
           onChange={(event) => {
@@ -104,6 +108,10 @@ export function PlayerSearch({
             setOpen(true);
           }}
           onFocus={() => setOpen(true)}
+          onKeyDown={onKeyDown}
+          aria-activedescendant={
+            open && results[active] ? `${listId}-${results[active].player_id}` : undefined
+          }
           className="w-full rounded-md border border-line bg-surface px-2 py-1.5 text-sm text-ink outline-none"
         />
       )}
@@ -120,13 +128,17 @@ export function PlayerSearch({
           {!loading && results.length === 0 && (
             <li className="px-2.5 py-2 text-xs text-faint">no player by that name</li>
           )}
-          {results.map((result) => (
+          {results.map((result, index) => (
             <li key={result.player_id}>
               <button
+                id={`${listId}-${result.player_id}`}
                 role="option"
-                aria-selected={false}
+                aria-selected={index === active}
                 onClick={() => choose(result)}
-                className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left transition-colors hover:bg-raised"
+                onMouseEnter={() => setActive(index)}
+                className={`flex w-full items-center gap-2 px-2.5 py-1.5 text-left transition-colors ${
+                  index === active ? "bg-raised" : "hover:bg-raised"
+                }`}
               >
                 <PlayerHeadshot playerId={result.player_id} name={result.full_name} size={22} />
                 <span className="min-w-0 flex-1 truncate text-[13px] text-ink">

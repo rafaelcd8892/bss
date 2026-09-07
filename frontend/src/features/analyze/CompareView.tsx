@@ -13,9 +13,10 @@ import {
   goodnessRatio,
 } from "./metrics";
 import { PlayerHeadshot } from "../../components/PlayerHeadshot";
+import { PlayerSearch } from "../../components/PlayerSearch";
 import { TeamLogo } from "../../components/TeamLogo";
 import { usePlayerSeason } from "../catalog/hooks";
-import { PlayerSearch } from "./PlayerSearch";
+
 import { SeasonLineRow } from "./SeasonLineRow";
 import { usePlayerCompare } from "./usePlayerCompare";
 

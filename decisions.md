@@ -888,6 +888,8 @@ When adding a new decision, use this format:
 ---
 
 ## Change Log
+- 2026-09-07: Player search reaches Explore, and the viewer's club pickers became
+  keyboard-accessible comboboxes that match on abbreviation.
 - 2026-09-07: Added a player search endpoint with accent-insensitive matching, and
   replaced Compare's club-then-roster cascade with it.
 - 2026-09-07: Compare caught up with the rest — identities from the season endpoint,

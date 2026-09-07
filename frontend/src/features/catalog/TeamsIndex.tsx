@@ -1,4 +1,5 @@
-import { Link, useOutletContext } from "react-router-dom";
+import { Link, useNavigate, useOutletContext } from "react-router-dom";
+import { PlayerSearch } from "../../components/PlayerSearch";
 import { TeamLogo } from "../../components/TeamLogo";
 import type { ShellContext } from "../../components/AppShell";
 import { Card } from "../../components/Card";
@@ -8,9 +9,21 @@ import { useTeamCatalog } from "../../useTeamCatalog";
 export function TeamsIndex() {
   const { dark } = useOutletContext<ShellContext>();
   const teams = useTeamCatalog();
+  const navigate = useNavigate();
 
   return (
     <div className="flex flex-col gap-3">
+      {/* Reaching a player used to mean knowing his club and walking the roster. */}
+      <PlayerSearch
+        label="find a player"
+        inputLabel="find a player"
+        dark={dark}
+        selected={null}
+        onSelect={(result) => {
+          if (result) navigate(`/explore/players/${result.player_id}`);
+        }}
+      />
+
       <Card padded={false}>
         <div className="flex items-baseline justify-between gap-2 border-b border-line px-3.5 py-2.5">
           <span className="text-sm font-medium text-ink">Clubs</span>
