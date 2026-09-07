@@ -1,6 +1,8 @@
 """Recording a simulated game and recalling it by match id."""
 
 from collections.abc import Iterator
+from contextlib import contextmanager
+from dataclasses import replace
 from datetime import UTC, datetime
 
 import pytest
@@ -18,6 +20,11 @@ from baseball_sim.domain.contracts import (
 )
 from baseball_sim.domain.service import simulate_game_play_by_play
 from baseball_sim.main import app
+from baseball_sim.sim.rulesets import (
+    DEFAULT_EVENT_MODEL,
+    DEFAULT_RULESET,
+    SimulationRuleset,
+)
 
 CONTEXT = DeterministicContext(
     seed=1234, model_version="baseline-v1", data_snapshot_id="test"
@@ -170,3 +177,111 @@ def test_recording_stores_the_match_when_switched_on() -> None:
     assert response.status_code == 200
     # The run recorded is the one the caller can now replay by id.
     assert repository.recorded == [response.json()["result"]["match_id"]]
+
+
+RETUNED = replace(
+    DEFAULT_RULESET,
+    ruleset_id="retuned_for_test",
+    event_model=replace(
+        DEFAULT_EVENT_MODEL,
+        # Half the sensitivity: clubs finish closer together, and every game differs
+        # from one played under the default.
+        out=replace(DEFAULT_EVENT_MODEL.out, sensitivity=-0.06),
+        single=replace(DEFAULT_EVENT_MODEL.single, sensitivity=0.025),
+    ),
+)
+
+
+class RulesetAwareRepository:
+    """Holds one run and the rules it was played under."""
+
+    def __init__(self, *, ruleset: SimulationRuleset | None) -> None:
+        self._ruleset = ruleset
+
+    def record_run(self, **_: object) -> None:
+        raise AssertionError("this fake only serves reads")
+
+    def get_run(self, *, match_id: str) -> SimulationRunResponse:
+        return SimulationRunResponse(
+            match_id=match_id,
+            created_at_utc=datetime.now(UTC),
+            home_team_id=147,
+            away_team_id=121,
+            innings=9,
+            context=CONTEXT,
+            stats_source="synthetic",
+            ruleset_id=self._ruleset.ruleset_id if self._ruleset else None,
+            ruleset_checksum="stored-checksum" if self._ruleset else None,
+            summary=SimulateGameResult(
+                home_team_id=147,
+                away_team_id=121,
+                innings_played=9,
+                home_score=0,
+                away_score=0,
+                winner_team_id=147,
+                assumptions=[],
+            ),
+        )
+
+    def get_run_ruleset(self, *, match_id: str) -> SimulationRuleset | None:
+        del match_id
+        return self._ruleset
+
+
+@contextmanager
+def replay_client(ruleset: SimulationRuleset | None) -> Iterator[TestClient]:
+    app.dependency_overrides[get_simulation_run_repository] = (
+        lambda: RulesetAwareRepository(ruleset=ruleset)
+    )
+    try:
+        yield TestClient(app)
+    finally:
+        app.dependency_overrides.pop(get_simulation_run_repository, None)
+
+
+def _score(payload: dict) -> tuple[int, int]:
+    summary = payload["result"]["summary"]
+    return summary["home_score"], summary["away_score"]
+
+
+class TestReplayUsesTheStoredRuleset:
+    """The reason the ruleset is stored at all.
+
+    Re-simulating a recorded game under today's constants would hand back a different
+    game every time the model is retuned, while still presenting it as the original.
+    """
+
+    def test_a_run_replays_under_the_rules_it_was_recorded_under(self) -> None:
+        with replay_client(RETUNED) as client:
+            replayed = client.get("/api/v1/games/match_test/play-by-play").json()
+
+        under_current_rules = simulate_game_play_by_play(request())
+        assert _score(replayed) != (
+            under_current_rules.summary.home_score,
+            under_current_rules.summary.away_score,
+        )
+
+    def test_the_replay_is_itself_reproducible(self) -> None:
+        with replay_client(RETUNED) as client:
+            first = client.get("/api/v1/games/match_test/play-by-play").json()
+            second = client.get("/api/v1/games/match_test/play-by-play").json()
+        # `meta` carries a generation timestamp; the game itself must not move.
+        assert first["result"] == second["result"]
+
+    def test_the_default_ruleset_replays_the_original_game(self) -> None:
+        with replay_client(DEFAULT_RULESET) as client:
+            replayed = client.get("/api/v1/games/match_test/play-by-play").json()
+        expected = simulate_game_play_by_play(request(), ruleset=DEFAULT_RULESET)
+        assert _score(replayed) == (
+            expected.summary.home_score,
+            expected.summary.away_score,
+        )
+        assert replayed["result"]["plays"][0]["event"] == expected.plays[0].event
+
+    def test_a_run_with_no_stored_ruleset_is_refused_not_guessed(self) -> None:
+        """Recorded before the guarantee existed, so it cannot be honoured."""
+
+        with replay_client(None) as client:
+            response = client.get("/api/v1/games/match_test/play-by-play")
+        assert response.status_code == 409
+        assert "cannot be replayed faithfully" in response.json()["detail"]

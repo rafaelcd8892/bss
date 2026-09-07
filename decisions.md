@@ -738,7 +738,55 @@ When adding a new decision, use this format:
 
 ---
 
+## ADR-028: The Ruleset Owns the Event Model, and a Run Keeps the Ruleset It Was Played Under
+- Date: 2026-09-07
+- Status: Accepted
+- Context:
+  - Season simulation measured the model's spread (ADR-027) and found it 1.43x too
+    wide. Fixing that means changing the constants inside `_event_probabilities`.
+  - Those constants were compiled into the engine. Changing them would silently change
+    every stored run: `/games/{match_id}` hands the saved context back to the
+    simulator, which is only a faithful replay while the rules have not moved. A
+    retune would have made old replays produce a different game and still present it
+    as the original.
+  - This will not be the last retune. A fix that only covers this one is not a fix.
+- Decision:
+  - Lift every constant that turns two profiles into plate-appearance probabilities
+    into an `EventModel` on the `SimulationRuleset`: the attack and prevention weights,
+    and per outcome its league base, its sensitivity to the matchup, its bounds and its
+    home-field share. The engine reads them; it no longer holds them.
+  - Store the serialized ruleset with each run, and replay through a new endpoint,
+    `GET /games/{match_id}/play-by-play`, that plays it under its own rules.
+  - Refuse — 409, not a silent fallback — to replay a run recorded before the ruleset
+    was stored. It cannot be honoured, and a replay that quietly uses today's rules
+    while claiming to be the original is worse than no replay.
+  - Record the current constants as goldens first (`tests/data/event_model_golden.json`,
+    100 games across even, lopsided and extreme matchups) and assert the refactor left
+    them untouched. Moving where numbers live must not move what they produce, and
+    that claim should be checkable rather than asserted.
+  - `ruleset_from_payload` tolerates a missing field by falling back to its default. A
+    run recorded before a field existed was played under that default, so the default
+    is what reproduces it; refusing to parse would lose the replay for no gain.
+- Consequences:
+  - Retuning the model is now a new ruleset rather than an edit to the engine, and the
+    `ruleset_checksum` already folds into `match_id`, so a retuned model produces new
+    identities instead of colliding with old ones.
+  - The API guarantee is in place before the retune that needs it. The web viewer does
+    **not** use it yet — its replay route still re-simulates through the normal
+    endpoint under the current ruleset. That is a tracked gap, not a finished feature.
+  - The event model is now data, which means an invalid one is possible; `_validate_event_model`
+    rejects bounds that are inverted, outside `[0, 1]`, or that exclude their own base.
+- Alternatives considered:
+  - Editing the constants and clearing `simulation_runs` (works once, then the next
+    retune poses the identical problem).
+  - Constants in the ruleset without storing it per run (the checksum would mark old
+    runs as different, but replaying one would still use today's rules).
+
+---
+
 ## Change Log
+- 2026-09-07: Added ADR-028; the event model moved into the ruleset and every run now
+  stores the ruleset it was played under, so retuning cannot rewrite an old replay.
 - 2026-09-07: Added ADR-027; season simulation over the real schedule with a
   projection mode, and the first season-level measurement of the model's spread.
 - 2026-09-07: Added ADR-026; roster reads cached per club, making a full simulated

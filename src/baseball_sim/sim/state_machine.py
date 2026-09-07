@@ -7,7 +7,13 @@ from baseball_sim.sim.hashing import unit_interval
 from baseball_sim.sim.lineups import Batter, synthetic_lineup
 from baseball_sim.sim.pitching import MoundAssignment, PitchingStaff, synthetic_staff
 from baseball_sim.sim.profiles import TeamProfile, synthetic_team_profile
-from baseball_sim.sim.rulesets import DEFAULT_RULESET, SimulationRuleset
+from baseball_sim.sim.rulesets import (
+    DEFAULT_EVENT_MODEL,
+    DEFAULT_RULESET,
+    EventModel,
+    EventRates,
+    SimulationRuleset,
+)
 
 HalfInningLabel = Literal["top", "bottom"]
 PlateAppearanceEvent = Literal[
@@ -362,6 +368,7 @@ def _simulate_half_inning(
         defense_profile=defense_profile,
         is_home_batting=is_home_batting,
         home_field_event_boost=ruleset.home_field_event_boost,
+        event_model=ruleset.event_model,
     )
 
     state = _HalfInningState()
@@ -455,56 +462,63 @@ def _batter_at(lineup: list[Batter], order_index: int) -> Batter | None:
     return lineup[order_index % len(lineup)]
 
 
+def _rate(rates: EventRates, *, drive: float, home_boost: float) -> float:
+    """One outcome's probability: its league base, moved by the matchup and bounded."""
+
+    return _clamp(
+        rates.base + rates.sensitivity * drive + rates.home_boost * home_boost,
+        rates.minimum,
+        rates.maximum,
+    )
+
+
 def _event_probabilities(
     *,
     offense_profile: TeamProfile,
     defense_profile: TeamProfile,
     is_home_batting: bool,
     home_field_event_boost: float,
+    event_model: EventModel = DEFAULT_EVENT_MODEL,
 ) -> dict[PlateAppearanceEvent, float]:
+    model = event_model
     attack = (
-        offense_profile.offense * 0.45
-        + offense_profile.discipline * 0.2
-        + offense_profile.power * 0.25
-        + offense_profile.speed * 0.1
+        offense_profile.offense * model.attack_offense
+        + offense_profile.discipline * model.attack_discipline
+        + offense_profile.power * model.attack_power
+        + offense_profile.speed * model.attack_speed
     )
     prevention = (
-        defense_profile.prevention * 0.55
-        + defense_profile.command * 0.25
-        + defense_profile.range_factor * 0.2
+        defense_profile.prevention * model.prevention_prevention
+        + defense_profile.command * model.prevention_command
+        + defense_profile.range_factor * model.prevention_range
     )
     delta = attack - prevention
     home_batting_boost = home_field_event_boost if is_home_batting else 0.0
 
-    out_prob = _clamp(0.695 - 0.12 * delta - home_batting_boost * 0.6, 0.54, 0.78)
-    walk_prob = _clamp(
-        0.078 + 0.03 * (offense_profile.discipline - defense_profile.command) + home_batting_boost,
-        0.045,
-        0.14,
+    # Each outcome responds to the part of the matchup that actually drives it: overall
+    # strength for outs and singles, plate discipline against command for walks, power
+    # against the glove for doubles, against the arm for home runs.
+    out_prob = _rate(model.out, drive=delta, home_boost=home_batting_boost)
+    walk_prob = _rate(
+        model.walk,
+        drive=offense_profile.discipline - defense_profile.command,
+        home_boost=home_batting_boost,
     )
-    single_prob = _clamp(
-        0.142 + 0.05 * delta + 0.6 * home_batting_boost,
-        0.09,
-        0.22,
+    single_prob = _rate(model.single, drive=delta, home_boost=home_batting_boost)
+    double_prob = _rate(
+        model.double,
+        drive=offense_profile.power - defense_profile.range_factor,
+        home_boost=home_batting_boost,
     )
-    double_prob = _clamp(
-        0.045
-        + 0.018 * (offense_profile.power - defense_profile.range_factor)
-        + 0.3 * home_batting_boost,
-        0.02,
-        0.08,
+    triple_prob = _rate(
+        model.triple,
+        drive=offense_profile.speed - defense_profile.range_factor,
+        home_boost=home_batting_boost,
     )
-    triple_prob = _clamp(
-        0.005 + 0.007 * (offense_profile.speed - defense_profile.range_factor),
-        0.002,
-        0.02,
-    )
-    home_run_prob = _clamp(
-        0.035
-        + 0.028 * (offense_profile.power - defense_profile.prevention)
-        + 0.5 * home_batting_boost,
-        0.015,
-        0.09,
+    home_run_prob = _rate(
+        model.home_run,
+        drive=offense_profile.power - defense_profile.prevention,
+        home_boost=home_batting_boost,
     )
 
     raw = {

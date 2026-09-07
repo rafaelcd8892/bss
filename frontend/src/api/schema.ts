@@ -38,6 +38,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/games/{match_id}/play-by-play": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Replay Simulation Run Endpoint
+         * @description Replay a recorded game under the rules it was recorded under.
+         *
+         *     Re-simulating with today's ruleset would quietly hand back a different game every
+         *     time the model is retuned. A run with no stored ruleset predates that guarantee and
+         *     is refused rather than replayed under rules it never saw.
+         */
+        get: operations["replay_simulation_run_endpoint_api_v1_games__match_id__play_by_play_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health": {
         parameters: {
             query?: never;
@@ -528,6 +552,10 @@ export interface components {
             innings: number;
             /** Match Id */
             match_id: string;
+            /** Ruleset Checksum */
+            ruleset_checksum?: string | null;
+            /** Ruleset Id */
+            ruleset_id?: string | null;
             /** Stats Source */
             stats_source: string;
             summary: components["schemas"]["SimulateGameResult"];
@@ -719,6 +747,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SimulationRunResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    replay_simulation_run_endpoint_api_v1_games__match_id__play_by_play_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                match_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimulateGamePlayByPlayResponse"];
                 };
             };
             /** @description Validation Error */

@@ -331,10 +331,57 @@ def simulate_game_play_by_play_endpoint(
             innings=request.innings,
             stats_source=settings.stats_source,
             summary=result.summary,
+            ruleset=loaded_ruleset.ruleset,
+            ruleset_checksum=loaded_ruleset.checksum_sha256,
         )
 
     return SimulateGamePlayByPlayResponse(
         meta=ResponseMeta(context=request.context), result=result
+    )
+
+
+@router.get(
+    "/games/{match_id}/play-by-play", response_model=SimulateGamePlayByPlayResponse
+)
+def replay_simulation_run_endpoint(
+    match_id: str,
+    runs: RunDependency,
+    settings: SettingsDependency,
+) -> SimulateGamePlayByPlayResponse:
+    """Replay a recorded game under the rules it was recorded under.
+
+    Re-simulating with today's ruleset would quietly hand back a different game every
+    time the model is retuned. A run with no stored ruleset predates that guarantee and
+    is refused rather than replayed under rules it never saw.
+    """
+
+    run = runs.get_run(match_id=match_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail=f"no recorded run for {match_id}")
+    ruleset = runs.get_run_ruleset(match_id=match_id)
+    if ruleset is None:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"run {match_id} was recorded before its ruleset was stored, "
+                "so it cannot be replayed faithfully"
+            ),
+        )
+
+    result = simulate_game_play_by_play(
+        SimulateGameRequest(
+            home_team_id=run.home_team_id,
+            away_team_id=run.away_team_id,
+            innings=run.innings,
+            context=run.context,
+        ),
+        ruleset=ruleset,
+        ruleset_checksum=run.ruleset_checksum or "",
+        provider=get_stats_provider(settings),
+        lineup_provider=get_lineup_provider(settings),
+    )
+    return SimulateGamePlayByPlayResponse(
+        meta=ResponseMeta(context=run.context), result=result
     )
 
 

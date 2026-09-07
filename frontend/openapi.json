@@ -901,6 +901,28 @@
             "title": "Match Id",
             "type": "string"
           },
+          "ruleset_checksum": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ruleset Checksum"
+          },
+          "ruleset_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ruleset Id"
+          },
           "stats_source": {
             "title": "Stats Source",
             "type": "string"
@@ -1396,6 +1418,46 @@
           }
         },
         "summary": "Get Simulation Run Endpoint"
+      }
+    },
+    "/api/v1/games/{match_id}/play-by-play": {
+      "get": {
+        "description": "Replay a recorded game under the rules it was recorded under.\n\nRe-simulating with today's ruleset would quietly hand back a different game every\ntime the model is retuned. A run with no stored ruleset predates that guarantee and\nis refused rather than replayed under rules it never saw.",
+        "operationId": "replay_simulation_run_endpoint_api_v1_games__match_id__play_by_play_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "match_id",
+            "required": true,
+            "schema": {
+              "title": "Match Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimulateGamePlayByPlayResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Replay Simulation Run Endpoint"
       }
     },
     "/api/v1/health": {

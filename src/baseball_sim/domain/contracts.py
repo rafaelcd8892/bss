@@ -272,6 +272,10 @@ class SimulationRunResponse(BaseModel):
     context: DeterministicContext
     #: Which stats source served the run, for lineage.
     stats_source: str
+    #: The rules this run was played under. Absent on runs recorded before the
+    #: ruleset was persisted, which is exactly when a replay cannot be trusted.
+    ruleset_id: str | None = None
+    ruleset_checksum: str | None = None
     summary: SimulateGameResult
 
 

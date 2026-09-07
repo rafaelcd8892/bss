@@ -14,6 +14,7 @@ import pytest
 
 from baseball_sim.domain.contracts import DeterministicContext, SimulateGameResult
 from baseball_sim.domain.simulation_runs import PostgresSimulationRunRepository
+from baseball_sim.sim.rulesets import DEFAULT_RULESET
 
 CONTEXT = DeterministicContext(
     seed=4242, model_version="baseline-v1", data_snapshot_id="ui"
@@ -52,6 +53,8 @@ def record(repository: PostgresSimulationRunRepository, **overrides: Any) -> Non
         "innings": 9,
         "stats_source": "postgres",
         "summary": summary(),
+        "ruleset": DEFAULT_RULESET,
+        "ruleset_checksum": "checksum-under-test",
     }
     payload.update(overrides)
     repository.record_run(**payload)
