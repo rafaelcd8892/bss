@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Callable, Sequence
-from dataclasses import dataclass
+from collections.abc import Awaitable, Callable, Mapping, Sequence
+from dataclasses import dataclass, replace
 from typing import Any, Protocol, cast
 
 from baseball_sim.config import Settings, get_settings
@@ -19,8 +19,10 @@ from baseball_sim.ingest.normalize import (
 from baseball_sim.ingest.repository import IngestRepository, PostgresIngestRepository
 from baseball_sim.ingest.snapshot_store import SnapshotStore, StoredSnapshot
 from baseball_sim.ingest.stats import (
+    ExpectedStats,
     PlayerSeasonFieldingRecord,
     PlayerSeasonStatRecord,
+    normalize_player_expected,
     normalize_player_fielding,
     normalize_player_stats,
 )
@@ -28,9 +30,34 @@ from baseball_sim.ingest.stats import (
 SOURCE_SYSTEM = "mlb_stats_api"
 STAT_GROUPS = ("hitting", "pitching", "fielding")
 
+#: The API stat type carrying Statcast expected outcomes. It is a second view of the
+#: same group, not a second source: xwOBA arrives from the endpoint we already call.
+EXPECTED_STAT_TYPE = "expectedStatistics"
+#: Groups that have an expected view. Fielding does not.
+_EXPECTED_GROUPS = ("hitting", "pitching")
+
 #: Positions the MLB roster uses for a pitcher and for a declared two-way player.
 _PITCHER_POSITIONS = frozenset({"P", "SP", "RP", "LHP", "RHP", "CP"})
 _TWO_WAY_POSITION = "TWP"
+
+
+def stat_requests_for(
+    position: str | None, *, fetch_all: bool, include_expected: bool = True
+) -> tuple[tuple[str, str], ...]:
+    """The ``(group, stat_type)`` pairs worth requesting for a player.
+
+    Expected stats are a separate request per group because the API returns them
+    under a separate stat type. That is roughly a third more requests, so it can be
+    turned off for a run that only needs the counting lines.
+    """
+
+    groups = stat_groups_for(position, fetch_all=fetch_all)
+    requests = [(group, "season") for group in groups]
+    if include_expected:
+        requests += [
+            (group, EXPECTED_STAT_TYPE) for group in groups if group in _EXPECTED_GROUPS
+        ]
+    return tuple(requests)
 
 
 def stat_groups_for(position: str | None, *, fetch_all: bool) -> tuple[str, ...]:
@@ -98,7 +125,7 @@ class SupportsMLBClient(Protocol):
 
 class SupportsPlayerStatsClient(SupportsMLBClient, Protocol):
     async def get_player_season_stats(
-        self, *, player_id: int, season: int, group: str
+        self, *, player_id: int, season: int, group: str, stat_type: str = "season"
     ) -> dict[str, Any]: ...
 
 
@@ -311,36 +338,45 @@ async def _ingest_player_stats(
     players: Sequence[PlayerRecord],
     season: int,
     all_stat_groups: bool = False,
+    include_expected_stats: bool = True,
     max_concurrency: int = 8,
 ) -> tuple[str, int, int]:
     by_id = {player.player_id: player for player in players}
-    requests: list[tuple[int, str]] = [
-        (player_id, group)
+    requests: list[tuple[int, str, str]] = [
+        (player_id, group, stat_type)
         for player_id in sorted(by_id)
-        for group in stat_groups_for(
-            by_id[player_id].primary_position, fetch_all=all_stat_groups
+        for group, stat_type in stat_requests_for(
+            by_id[player_id].primary_position,
+            fetch_all=all_stat_groups,
+            include_expected=include_expected_stats,
         )
     ]
     raw_payloads: dict[str, dict[str, Any]] = {}
     records: list[PlayerSeasonStatRecord] = []
     fielding: list[PlayerSeasonFieldingRecord] = []
+    expected: dict[tuple[int, str], ExpectedStats] = {}
 
-    def stats_factory(player_id: int, group: str) -> Callable[[], Awaitable[dict[str, Any]]]:
+    def stats_factory(
+        player_id: int, group: str, stat_type: str
+    ) -> Callable[[], Awaitable[dict[str, Any]]]:
         async def call() -> dict[str, Any]:
             return await client.get_player_season_stats(
-                player_id=player_id, season=season, group=group
+                player_id=player_id, season=season, group=group, stat_type=stat_type
             )
 
         return call
 
     payloads = await _gather_limited(
         limit=max_concurrency,
-        factories=[stats_factory(player_id, group) for player_id, group in requests],
+        factories=[stats_factory(*request) for request in requests],
     )
 
-    for (player_id, group), payload in zip(requests, payloads, strict=True):
-        raw_payloads[f"{player_id}:{group}"] = payload
-        if group == "fielding":
+    for (player_id, group, stat_type), payload in zip(requests, payloads, strict=True):
+        raw_payloads[f"{player_id}:{group}:{stat_type}"] = payload
+        if stat_type == EXPECTED_STAT_TYPE:
+            for parsed_group, parsed in normalize_player_expected(payload=payload).items():
+                expected[(player_id, parsed_group)] = parsed
+        elif group == "fielding":
             fielding.extend(
                 normalize_player_fielding(player_id=player_id, season=season, payload=payload)
             )
@@ -348,6 +384,8 @@ async def _ingest_player_stats(
             records.extend(
                 normalize_player_stats(player_id=player_id, season=season, payload=payload)
             )
+
+    records = [_with_expected(record, expected) for record in records]
 
     stats_snapshot = snapshot_store.write_snapshot(
         source_system=SOURCE_SYSTEM,
@@ -366,6 +404,24 @@ async def _ingest_player_stats(
         snapshot_id=stats_snapshot.snapshot_id, records=fielding
     )
     return stats_snapshot.snapshot_id, upserted, fielding_upserted
+
+
+def _with_expected(
+    record: PlayerSeasonStatRecord,
+    expected: Mapping[tuple[int, str], ExpectedStats],
+) -> PlayerSeasonStatRecord:
+    """Attach the Statcast view to the counting line it belongs to."""
+
+    measured = expected.get((record.player_id, record.stat_group))
+    if measured is None:
+        return record
+    return replace(
+        record,
+        xwoba=measured.x_woba,
+        x_batting_average=measured.x_batting_average,
+        x_slg=measured.x_slg,
+        x_woba_con=measured.x_woba_con,
+    )
 
 
 def _record_snapshot(

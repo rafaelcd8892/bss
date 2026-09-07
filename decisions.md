@@ -581,7 +581,83 @@ When adding a new decision, use this format:
 
 ---
 
+## ADR-024: Statcast Expected Stats Come From the Stats API, Not Baseball Savant
+- Date: 2026-09-07
+- Status: Accepted (revises ADR-003)
+- Context:
+  - ADR-003 assumed expected metrics would need Baseball Savant exports: a second
+    source, a second client, a second schema, and a licensing review before any of it.
+    That assumption was never tested; it was made before the Stats API was explored.
+  - `xwoba` had a column since migration 0001 and a slot in the compare metric set, but
+    no source. It was the last metric the UI had to label "seeded".
+  - Checking `/api/v1/statTypes` shows `expectedStatistics` among the 61 available
+    types. It returns `woba`, `avg`, `slg` and `wobaCon` for a player-season, and it
+    works for both the hitting and the pitching group.
+- Decision:
+  - Take expected stats from the endpoint already in use. No Savant client, no second
+    source, no new schema beyond three columns beside the `xwoba` that already existed.
+  - Model the request as a second *stat type* over the same group rather than a new
+    group: `stat_requests_for` now returns `(group, stat_type)` pairs. Fielding has no
+    expected view, so it gets none. The whole thing can be switched off for a run that
+    only wants the counting lines — it is roughly a third more requests.
+  - Serve `xwoba` only from the **hitting** row. The pitching row carries xwOBA
+    *against*, where a low number is elite, and the compare table ranks this metric
+    higher-is-better: feeding a pitcher's value in would rank an ace below a
+    replacement bat on a metric meant to describe hitting. The pitching value is still
+    stored — it belongs with the prevention metrics, not here.
+  - Store the expected values as they arrive rather than deriving them. They are
+    measurements of batted-ball quality, not formulas we can evaluate; that is exactly
+    why `xwoba` could never be computed like the other four compare metrics.
+- Consequences:
+  - 100% coverage on the ingested season: 419 of 419 hitting rows and 418 of 418
+    pitching rows carry an expected line. Compare now reports three measured metrics
+    for a hitter instead of two, and no metric in the product is seeded when the data
+    is there.
+  - ADR-003's Savant half is not wrong so much as unnecessary for this purpose. It
+    would still be the source for pitch-level and batted-ball detail, which the Stats
+    API does not expose. Nothing depends on it today.
+- Alternatives considered:
+  - Baseball Savant CSV exports, per ADR-003 (a whole source to maintain for four
+    numbers that arrive from an endpoint we already call).
+  - Approximating xwOBA from the counting line (it is not derivable from it; that is
+    the entire point of the metric).
+
+---
+
+## ADR-025: MLBAM Terms Constrain Bulk and Commercial Use
+- Date: 2026-09-07
+- Status: Accepted
+- Context:
+  - ADR-003 listed "validate usage terms" as a consequence and never closed it. Every
+    Stats API response carries a copyright line pointing at MLBAM's terms.
+  - Those terms state that only "individual, non-commercial, non-bulk use" is
+    permitted, and that anything else requires prior written authorization from MLBAM.
+  - This matters now because the next things on the roadmap are precisely bulk: full
+    career history for every rostered player, and club logos and player headshots.
+- Decision:
+  - Record the constraint rather than discover it later. The project stays a personal,
+    non-commercial analysis tool; the commercial rollout mentioned in `plan.MD` would
+    need authorization, and that is a business decision, not an engineering one.
+  - Keep ingestion paced and bounded (the concurrency limiter already does this), and
+    prefer requests that return more per call — `yearByYear` returns a full career in
+    one request, which is both cheaper for us and lighter on the API.
+  - Reference images by URL rather than copying them into our storage. The URLs are
+    derivable from ids we already hold, so no column and no copy is needed, and we do
+    not redistribute MLBAM's materials.
+- Consequences:
+  - The historical backfill is feasible technically and is a judgement call
+    contractually. It is not blocked, but it is not something to run unattended.
+  - Anything commercial requires a conversation with MLBAM first.
+- Alternatives considered:
+  - Ignoring the terms (not an option).
+  - A paid consolidated data feed, as ADR-003 already considered — the answer if the
+    project ever needs commercial footing.
+
+---
+
 ## Change Log
+- 2026-09-07: Added ADR-024 and ADR-025; Statcast expected stats come from the Stats
+  API rather than Baseball Savant, and MLBAM's bulk/commercial terms are recorded.
 - 2026-09-06: Added ADR-023; every play now names the pitcher who threw it, with the
   rotation chosen by match id and outing lengths taken from each pitcher's season.
 - 2026-09-06: Added ADR-021 and ADR-022; fielding ingested and mapped onto a

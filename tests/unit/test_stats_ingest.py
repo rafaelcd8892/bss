@@ -5,11 +5,16 @@ from typing import Any
 import pytest
 
 from baseball_sim.config import Settings
-from baseball_sim.ingest.pipeline import ingest_mlb_window, stat_groups_for
+from baseball_sim.ingest.pipeline import (
+    ingest_mlb_window,
+    stat_groups_for,
+    stat_requests_for,
+)
 from baseball_sim.ingest.snapshot_store import SnapshotStore
 from baseball_sim.ingest.stats import (
     PlayerSeasonStatRecord,
     innings_to_float,
+    normalize_player_expected,
     normalize_player_stats,
 )
 
@@ -69,6 +74,27 @@ FIELDING_PAYLOAD = {
                     },
                     "team": {"id": 147},
                 },
+            ],
+        }
+    ]
+}
+
+EXPECTED_HITTING_PAYLOAD = {
+    "stats": [
+        {
+            "type": {"displayName": "expectedStatistics"},
+            "group": {"displayName": "hitting"},
+            "splits": [
+                {
+                    "season": "2026",
+                    # The API sends these as bare-decimal strings.
+                    "stat": {
+                        "avg": ".314",
+                        "slg": ".733",
+                        "woba": ".475",
+                        "wobaCon": ".615",
+                    },
+                }
             ],
         }
     ]
@@ -149,9 +175,11 @@ class FakeStatsClient:
         return []
 
     async def get_player_season_stats(
-        self, *, player_id: int, season: int, group: str
+        self, *, player_id: int, season: int, group: str, stat_type: str = "season"
     ) -> dict[str, Any]:
         del player_id, season
+        if stat_type == "expectedStatistics":
+            return EXPECTED_HITTING_PAYLOAD if group == "hitting" else {}
         if group == "hitting":
             return HITTING_PAYLOAD
         return FIELDING_PAYLOAD if group == "fielding" else PITCHING_PAYLOAD
@@ -288,9 +316,9 @@ class ConcurrencyProbeClient:
         return []
 
     async def get_player_season_stats(
-        self, *, player_id: int, season: int, group: str
+        self, *, player_id: int, season: int, group: str, stat_type: str = "season"
     ) -> dict[str, Any]:
-        del player_id, season
+        del player_id, season, stat_type
         self.in_flight += 1
         self.max_in_flight = max(self.max_in_flight, self.in_flight)
         try:
@@ -403,3 +431,79 @@ async def test_all_stat_groups_override_doubles_the_requests(tmp_path: Path) -> 
     # Four players, three groups each — but only the two stat groups become
     # stat rows; fielding lands in its own table.
     assert result.player_stats_upserted == 8
+
+
+class TestExpectedStatistics:
+    """Statcast expected outcomes, from the same API rather than a second source."""
+
+    def test_parses_the_bare_decimal_strings_the_api_sends(self) -> None:
+        parsed = normalize_player_expected(payload=EXPECTED_HITTING_PAYLOAD)
+        assert set(parsed) == {"hitting"}
+        expected = parsed["hitting"]
+        assert expected.x_woba == pytest.approx(0.475)
+        assert expected.x_batting_average == pytest.approx(0.314)
+        assert expected.x_slg == pytest.approx(0.733)
+        assert expected.x_woba_con == pytest.approx(0.615)
+
+    def test_a_player_without_statcast_is_absent_not_four_nulls(self) -> None:
+        empty = {
+            "stats": [
+                {
+                    "type": {"displayName": "expectedStatistics"},
+                    "group": {"displayName": "hitting"},
+                    "splits": [{"season": "2026", "stat": {}}],
+                }
+            ]
+        }
+        assert normalize_player_expected(payload=empty) == {}
+
+    def test_a_malformed_payload_yields_nothing_rather_than_raising(self) -> None:
+        assert normalize_player_expected(payload={}) == {}
+        assert normalize_player_expected(payload={"stats": "nope"}) == {}
+
+
+class TestStatRequests:
+    def test_expected_is_a_second_view_of_each_countable_group(self) -> None:
+        assert stat_requests_for("RF", fetch_all=False) == (
+            ("hitting", "season"),
+            ("fielding", "season"),
+            ("hitting", "expectedStatistics"),
+        )
+
+    def test_fielding_has_no_expected_view(self) -> None:
+        requests = stat_requests_for("RF", fetch_all=False)
+        assert ("fielding", "expectedStatistics") not in requests
+
+    def test_a_pitcher_gets_expected_stats_against_him(self) -> None:
+        assert stat_requests_for("SP", fetch_all=False) == (
+            ("pitching", "season"),
+            ("pitching", "expectedStatistics"),
+        )
+
+    def test_it_can_be_turned_off_for_a_counting_only_run(self) -> None:
+        requests = stat_requests_for("RF", fetch_all=False, include_expected=False)
+        assert all(stat_type == "season" for _, stat_type in requests)
+
+
+@pytest.mark.asyncio
+async def test_expected_stats_attach_to_the_counting_line(tmp_path: Path) -> None:
+    """xwOBA is not derived from the counting line, so it rides in on its own request
+    and has to land on the right row."""
+
+    repository = FakeStatsRepository()
+    await ingest_mlb_window(
+        start_date="2026-04-01",
+        end_date="2026-04-02",
+        season=2026,
+        include_player_stats=True,
+        repository=repository,
+        client=FakeStatsClient(),
+        snapshot_store=SnapshotStore(tmp_path / "raw"),
+    )
+
+    [record] = repository.player_stats
+    assert record.stat_group == "hitting"
+    assert record.xwoba == pytest.approx(0.475)
+    assert record.x_slg == pytest.approx(0.733)
+    # The computed wOBA is untouched: they are different measurements.
+    assert record.woba is not None and record.woba != record.xwoba

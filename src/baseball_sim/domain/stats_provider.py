@@ -6,8 +6,9 @@ stats or a deterministic synthetic fallback, chosen at the edge:
 
 - :class:`SyntheticStatsProvider` reproduces the original hash-based values exactly,
   so seeded runs stay byte-for-byte reproducible when no data is available.
-- :class:`StatLineStatsProvider` computes real sabermetrics from supplied stat lines
-  and delegates any metric/team it cannot cover to a fallback provider.
+- :class:`StatLineStatsProvider` computes real sabermetrics from supplied stat lines,
+  carries ingested Statcast expected values through as measurements, and delegates any
+  metric/team it cannot cover to a fallback provider.
 - :class:`LayeredStatsProvider` chains providers (real first, synthetic last),
   mirroring the API-first-with-seeded-fallback philosophy of roster loading.
 """
@@ -78,10 +79,9 @@ class PlayerRating:
 def rollup_source(sources: Mapping[str, MetricSource]) -> RatingSource:
     """Summarize per-metric provenance.
 
-    A rating is only ``real`` when every metric came from ingested data. Because
-    ``xwoba`` needs Statcast, which is not ingested yet, real players currently report
-    ``real_partial`` — that is deliberate: it keeps the remaining gap visible instead
-    of letting one synthetic metric hide inside a "real" label.
+    A rating is only ``real`` when every metric came from ingested data. A hitter with
+    no pitching line still reports ``real_partial``, because his FIP is a hash — the
+    label keeps that visible instead of letting a synthetic metric hide inside "real".
     """
 
     values = set(sources.values())
@@ -145,6 +145,7 @@ class StatLineStatsProvider:
         team_pitching: Mapping[int, Sequence[RawPitchingLine]],
         team_fielding: Mapping[int, Sequence[RawFieldingLine]] | None = None,
         league_range_baselines: Mapping[str, float] | None = None,
+        expected_woba: Mapping[int, float] | None = None,
         fallback: StatsProvider | None = None,
         weights: WobaWeights = DEFAULT_WOBA_WEIGHTS,
         fip_constants: FipConstants = DEFAULT_FIP_CONSTANTS,
@@ -157,6 +158,7 @@ class StatLineStatsProvider:
         self._league_range_baselines = (
             dict(league_range_baselines) if league_range_baselines else None
         )
+        self._expected_woba = dict(expected_woba or {})
         self._fallback: StatsProvider = (
             fallback if fallback is not None else SyntheticStatsProvider()
         )
@@ -192,6 +194,13 @@ class StatLineStatsProvider:
             )
             sources["fip"] = "real"
             sources["k_bb_ratio"] = "real"
+
+        # xwOBA is measured off batted-ball quality, not derived from the counting
+        # line, so it arrives ingested or not at all.
+        expected = self._expected_woba.get(player_id)
+        if expected is not None:
+            metrics["xwoba"] = round(expected, METRIC_SPECS["xwoba"].decimals)
+            sources["xwoba"] = "real"
 
         return PlayerRating(
             player_id=player_id,

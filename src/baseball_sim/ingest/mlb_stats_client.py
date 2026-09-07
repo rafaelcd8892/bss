@@ -133,10 +133,19 @@ class MLBStatsClient:
         player_id: int,
         season: int,
         group: str,
+        stat_type: str = "season",
     ) -> dict[str, Any]:
+        """One player-season split.
+
+        ``stat_type`` selects which view the API returns for the same group:
+        ``season`` for the counting line, ``expectedStatistics`` for the Statcast
+        expected outcomes. They are separate requests because the API returns them
+        under separate stat types, not because they come from separate sources.
+        """
+
         return await self._get_json(
             f"/people/{player_id}/stats",
-            params={"stats": "season", "season": season, "group": group},
+            params={"stats": stat_type, "season": season, "group": group},
         )
 
     async def get_team_roster(

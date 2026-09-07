@@ -78,6 +78,11 @@ class PlayerSeasonStatRecord:
     strikeout_rate: float | None = None
     walk_rate: float | None = None
     ground_ball_rate: float | None = None
+    # Statcast expected stats. Measured off batted-ball quality, not derived from the
+    # counting lines, so they are stored as they arrive.
+    x_batting_average: float | None = None
+    x_slg: float | None = None
+    x_woba_con: float | None = None
 
 
 def _as_int(value: Any) -> int:
@@ -288,6 +293,69 @@ def _pitching_record(
         walk_rate=_round(compute_walk_rate(line), 4),
         ground_ball_rate=_round(compute_ground_ball_rate(line), 4),
     )
+
+
+@dataclass(frozen=True)
+class ExpectedStats:
+    """Statcast expected outcomes for one player-season, per stat group.
+
+    These are not computed from the counting line — they are what the batted balls
+    deserved, given exit velocity and launch angle. That is exactly why `xwoba` could
+    never be derived like the other compare metrics and stayed seeded until now.
+    """
+
+    x_woba: float | None = None
+    x_batting_average: float | None = None
+    x_slg: float | None = None
+    x_woba_con: float | None = None
+
+
+def _as_rate(value: Any) -> float | None:
+    """Parse a rate the API sends as a bare-decimal string like ``".314"``."""
+
+    if value is None:
+        return None
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed
+
+
+def normalize_player_expected(
+    *, payload: dict[str, Any]
+) -> dict[str, ExpectedStats]:
+    """Parse an ``expectedStatistics`` payload into one entry per stat group."""
+
+    stats = payload.get("stats")
+    if not isinstance(stats, list):
+        return {}
+
+    parsed: dict[str, ExpectedStats] = {}
+    for group_block in stats:
+        if not isinstance(group_block, dict):
+            continue
+        group = group_block.get("group")
+        group_name = group.get("displayName") if isinstance(group, dict) else None
+        if group_name not in ("hitting", "pitching"):
+            continue
+        split = _first_split(group_block.get("splits"))
+        if split is None:
+            continue
+        stat = split.get("stat")
+        if not isinstance(stat, dict):
+            continue
+        expected = ExpectedStats(
+            x_woba=_as_rate(stat.get("woba")),
+            x_batting_average=_as_rate(stat.get("avg")),
+            x_slg=_as_rate(stat.get("slg")),
+            x_woba_con=_as_rate(stat.get("wobaCon")),
+        )
+        # An all-empty block is no measurement at all; keep it out so a player with
+        # no Statcast data is absent rather than present with four nulls.
+        if any(value is not None for value in vars(expected).values()):
+            parsed[group_name] = expected
+    return parsed
 
 
 def normalize_player_stats(

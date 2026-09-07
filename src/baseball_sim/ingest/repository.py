@@ -307,6 +307,7 @@ _PLAYER_SEASON_STATS_COLUMNS = (
     "batters_faced", "earned_runs", "hits_allowed", "games_started",
     "batting_average", "obp", "slg", "ops", "iso", "babip",
     "era", "whip", "strikeout_rate", "walk_rate", "ground_ball_rate",
+    "x_batting_average", "x_slg", "x_woba_con",
     "source_snapshot_id",
 )
 
@@ -368,6 +369,7 @@ def _player_season_stats_row(
         record.batting_average, record.obp, record.slg, record.ops, record.iso,
         record.babip, record.era, record.whip, record.strikeout_rate,
         record.walk_rate, record.ground_ball_rate,
+        record.x_batting_average, record.x_slg, record.x_woba_con,
         snapshot_id,
     )
     assert len(values) == len(_PLAYER_SEASON_STATS_COLUMNS)

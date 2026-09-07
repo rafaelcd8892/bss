@@ -27,13 +27,13 @@ from baseball_sim.sim.sabermetrics import (
 SEASON_STATS_COLUMNS = """player_id, team_id, stat_group,
            ip, at_bats, singles, doubles, triples, home_runs,
            walks, intentional_walks, hit_by_pitch, sacrifice_flies,
-           strikeouts, stolen_bases, pa"""
+           strikeouts, stolen_bases, pa, xwoba"""
 
 _SELECT_SEASON_STATS = """
     SELECT player_id, team_id, stat_group,
            ip, at_bats, singles, doubles, triples, home_runs,
            walks, intentional_walks, hit_by_pitch, sacrifice_flies,
-           strikeouts, stolen_bases, pa
+           strikeouts, stolen_bases, pa, xwoba
     FROM player_season_stats
     WHERE season = %s
     ORDER BY loaded_at_utc
@@ -84,12 +84,18 @@ def build_stat_line_provider_from_rows(
     pitching_lines: dict[int, RawPitchingLine] = {}
     team_batting: dict[int, list[RawBattingLine]] = {}
     team_pitching: dict[int, list[RawPitchingLine]] = {}
+    expected_woba: dict[int, float] = {}
 
     # A season accumulates one row per player per snapshot, so the same player is read
     # back several times with progressively fuller lines. Summing them all would blend
     # a stale April line into September's totals, so the latest row wins outright.
-    for player_id, team_id, line in _latest_stat_lines(rows):
+    for player_id, team_id, xwoba, line in _latest_stat_lines(rows):
         if isinstance(line, RawBattingLine):
+            # Only the hitting row. The pitching row carries xwOBA *against*, where a
+            # low number is elite — feeding it into a metric the compare table ranks
+            # higher-is-better would say an ace hits worse than a replacement bat.
+            if xwoba is not None:
+                expected_woba[player_id] = xwoba
             batting_lines[player_id] = line
             if team_id is not None:
                 team_batting.setdefault(team_id, []).append(line)
@@ -107,28 +113,30 @@ def build_stat_line_provider_from_rows(
         team_pitching=team_pitching,
         team_fielding=team_fielding,
         league_range_baselines=league_baselines,
+        expected_woba=expected_woba,
         fallback=fallback if fallback is not None else SyntheticStatsProvider(),
     )
 
 
 def _latest_stat_lines(
     rows: list[tuple[Any, ...]],
-) -> list[tuple[int, int | None, RawBattingLine | RawPitchingLine]]:
+) -> list[tuple[int, int | None, float | None, RawBattingLine | RawPitchingLine]]:
     """Keep the last row per ``(player, stat_group)``, in load order."""
 
-    latest: dict[tuple[int, str], tuple[int, int | None, Any]] = {}
+    latest: dict[tuple[int, str], tuple[int, int | None, float | None, Any]] = {}
     for row in rows:
         stat_group = str(row[2])
         if stat_group not in ("hitting", "pitching"):
             continue
         player_id = int(row[0])
         team_id = int(row[1]) if row[1] is not None else None
+        xwoba = float(row[16]) if len(row) > 16 and row[16] is not None else None
         line = (
             batting_line_from_row(row)
             if stat_group == "hitting"
             else pitching_line_from_row(row)
         )
-        latest[(player_id, stat_group)] = (player_id, team_id, line)
+        latest[(player_id, stat_group)] = (player_id, team_id, xwoba, line)
     return list(latest.values())
 
 

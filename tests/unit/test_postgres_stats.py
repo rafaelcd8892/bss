@@ -7,11 +7,13 @@ from baseball_sim.domain.stats_provider import SyntheticStatsProvider
 # player_id, team_id, stat_group, ip, at_bats, singles, doubles, triples,
 # home_runs, walks, intentional_walks, hit_by_pitch, sacrifice_flies,
 # strikeouts, stolen_bases, pa
+# ..., pa, xwoba
 HITTING_ROW: tuple[Any, ...] = (
-    100, 147, "hitting", None, 540, 112, 30, 3, 35, 50, 5, 6, 4, 120, 10, 600
+    100, 147, "hitting", None, 540, 112, 30, 3, 35, 50, 5, 6, 4, 120, 10, 600, None
 )
 PITCHING_ROW: tuple[Any, ...] = (
-    200, 147, "pitching", 200.33, None, None, None, None, 17, 45, None, 5, None, 230, None, None
+    200, 147, "pitching", 200.33, None, None, None, None, 17, 45, None, 5, None,
+    230, None, None, None,
 )
 
 
@@ -55,7 +57,7 @@ def test_later_snapshots_replace_earlier_ones_instead_of_summing() -> None:
     the club's totals.
     """
 
-    april = (100, 147, "hitting", None, 100, 20, 5, 0, 5, 10, 0, 1, 1, 25, 2, 120)
+    april = (100, 147, "hitting", None, 100, 20, 5, 0, 5, 10, 0, 1, 1, 25, 2, 120, None)
     september = HITTING_ROW
     provider = build_stat_line_provider_from_rows(rows=[april, september])
 
@@ -79,3 +81,36 @@ def test_fielding_rows_drive_range_against_the_league_baseline() -> None:
 def test_range_stays_neutral_without_fielding_rows() -> None:
     provider = build_stat_line_provider_from_rows(rows=[HITTING_ROW], fielding_rows=[])
     assert provider.team_profile(team_id=147, seed=1).range_factor == 0.5
+
+
+def hitting_row_with_xwoba(player_id: int, xwoba: float | None) -> tuple[Any, ...]:
+    return (player_id,) + HITTING_ROW[1:16] + (xwoba,)
+
+
+def pitching_row_with_xwoba(player_id: int, xwoba: float | None) -> tuple[Any, ...]:
+    return (player_id,) + PITCHING_ROW[1:16] + (xwoba,)
+
+
+def test_ingested_xwoba_is_reported_as_measured() -> None:
+    provider = build_stat_line_provider_from_rows(rows=[hitting_row_with_xwoba(100, 0.412)])
+    rating = provider.player_rating(player_id=100, seed=1)
+    assert rating.metrics["xwoba"] == 0.412
+    assert rating.sources["xwoba"] == "real"
+
+
+def test_a_pitchers_expected_woba_against_is_not_his_batting_xwoba() -> None:
+    """A low xwOBA against is elite pitching; the compare metric ranks high as good.
+
+    Reading the pitching row into `xwoba` would rank an ace below a replacement bat
+    on a metric that is supposed to describe hitting.
+    """
+
+    provider = build_stat_line_provider_from_rows(rows=[pitching_row_with_xwoba(200, 0.268)])
+    rating = provider.player_rating(player_id=200, seed=1)
+    assert rating.sources["xwoba"] == "synthetic"
+    assert rating.metrics["xwoba"] != 0.268
+
+
+def test_xwoba_stays_seeded_when_statcast_was_not_ingested() -> None:
+    provider = build_stat_line_provider_from_rows(rows=[hitting_row_with_xwoba(100, None)])
+    assert provider.player_rating(player_id=100, seed=1).sources["xwoba"] == "synthetic"

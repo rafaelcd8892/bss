@@ -34,10 +34,10 @@ A `StatsProvider` exposes two methods:
   Always available, reproduces the original seed-only behavior byte-for-byte. It is
   the universal fallback so a run never fails for missing data.
 - **`StatLineStatsProvider`** — computes real sabermetrics from supplied
-  `RawBattingLine` / `RawPitchingLine` inputs. Metrics it cannot derive for a player
-  (e.g. a pure hitter's FIP, or `xwoba` which needs Statcast) fall back per-metric and
-  the rating is marked `real_partial`. A player with both hitting and pitching data is
-  marked `real`.
+  `RawBattingLine` / `RawPitchingLine` inputs, and carries ingested Statcast expected
+  values through as measurements. Metrics it cannot derive for a player (e.g. a pure
+  hitter's FIP) fall back per-metric and the rating is marked `real_partial`. A player
+  with both hitting and pitching data is marked `real`.
 - **`LayeredStatsProvider`** — chains providers, preferring the first non-synthetic
   answer. Mirrors the API-first-with-seeded-fallback philosophy of roster loading
   (ADR-013).
@@ -56,6 +56,7 @@ Pure functions, no I/O, fixed league weights (FanGraphs 2023 baseline):
 | wRC+ | `((wOBA − lgwOBA)/wOBAScale + lgR/PA) / (lgR/PA) · 100` (park-neutral) |
 | FIP | `(13·HR + 3·(BB + HBP) − 2·K) / IP + FIP_constant` |
 | K/BB | `K / max(BB, 1)` |
+| xwOBA | *(not a formula — ingested from Statcast)* |
 | RF/9 | `(PO + A) x 9 / innings` — comparable only *within* a position |
 | FLD% | `(PO + A) / (PO + A + E)` |
 
@@ -83,6 +84,23 @@ were being discarded. Parsing them added these, at no extra request cost:
 
 Every one returns `None` rather than zero when its inputs were not ingested, so a
 missing measurement never masquerades as a real value of nought.
+
+### Statcast expected stats
+
+`xwOBA` is the one compare metric that cannot be computed from a counting line: it is
+what the batted balls *deserved*, given exit velocity and launch angle. It has to be
+ingested, and until it was, the UI labelled it seeded.
+
+It comes from the same endpoint as everything else — `stats=expectedStatistics` is a
+second *view* of a group, not a second source (ADR-024) — and yields `woba`, `avg`,
+`slg` and `wobaCon`. Because it is a separate stat type, it is a separate request:
+`stat_requests_for` returns `(group, stat_type)` pairs, roughly a third more requests,
+and it can be switched off for a counting-lines-only run.
+
+One trap worth naming. The same payload exists for the pitching group, where it is
+xwOBA **against** — and there a low number is elite. The compare table ranks `xwoba`
+higher-is-better, so only the hitting row feeds it. The pitching value is stored and
+belongs with the prevention metrics, beside FIP.
 
 ## Ingestion scope and aggregation trust
 

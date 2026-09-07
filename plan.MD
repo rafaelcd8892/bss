@@ -30,15 +30,21 @@ simulation runs and replay by `match_id`; fielding → a league-relative `range_
 (ADR-021); snapshot dedup on read (ADR-022); pitcher attribution (ADR-023).
 
 Open items, recommended order:
-1. Step 6: Statcast xwOBA — the last seeded metric in Compare. Starts with the
-   terms-of-use review ADR-003 deferred to this point.
-2. Integration test for the Postgres stats-provider path (the dedup and fielding reads
+1. Integration test for the Postgres stats-provider path (the dedup and fielding reads
    are covered only by unit tests over hand-built rows).
-3. Serve the widened metrics already stored: OBP/SLG/OPS/ISO/BABIP/ERA/WHIP and the
-   rates, through the player endpoint, Explore, and as leaderboard metrics.
-4. Player search endpoint, to replace the club -> roster cascade in Compare.
-5. Game-level history, so calibration can be a real out-of-sample backtest.
-6. Viewer polish: runner motion along the basepath, mobile layout (<720px) review.
+2. Serve the widened metrics already stored: OBP/SLG/OPS/ISO/BABIP/ERA/WHIP, the
+   rates, and the expected line — through the player endpoint, Explore, and as
+   leaderboard metrics.
+3. Cache lineups and staffs per club. The engine simulates a full season in 0.7s, but
+   the lineup provider opens a Postgres connection per game (21 ms), which is 150x the
+   engine cost and the one thing blocking mass season simulation.
+4. Club logos and player headshots by URL (derivable from ids we hold; see ADR-025).
+5. Player search endpoint, to replace the club -> roster cascade in Compare.
+6. Full career history via `yearByYear` — one request returns a whole career, but the
+   parser reads only the first split and the primary key has no team, so a traded
+   player's three splits collide. Both need deciding first.
+7. Game-level history, so calibration can be a real out-of-sample backtest.
+8. Viewer polish: runner motion along the basepath, mobile layout (<720px) review.
 Run locally: `uvicorn baseball_sim.main:app --port 8000` + `cd frontend && npm run dev`
 (or `preview_start` the `app` and `web` configs in `.claude/launch.json`).
 
@@ -175,7 +181,7 @@ Exit criteria:
 - [x] Migration `0002`: raw stat components + computed metrics in `player_season_stats`.
 - [x] Postgres read provider behind `BASEBALL_STATS_SOURCE=postgres`.
 - [x] Ingest fielding data to replace neutral `range_factor` (ADR-021).
-- [ ] Ingest Statcast expected stats to replace synthetic `xwoba`.
+- [x] Ingest Statcast expected stats to replace synthetic `xwoba` (ADR-024).
 - [ ] Integration test of the Postgres **stats provider** path. The integration suite
       covers catalog reads, ingest persistence and simulation runs, but not
       `build_stat_line_provider` — so the snapshot dedup (ADR-022) and the fielding
@@ -369,13 +375,24 @@ how the game is going; a pitcher's own quality does not yet influence the plate
 appearances he throws (the defense factor is still the club's, not the man's); and the
 viewer names the pitcher but the box score does not credit him.
 
-### Step 6 — Statcast expected stats
-- [ ] Baseball Savant ingestion (a genuinely separate source per ADR-003), including a
-      terms-of-use review.
-- [ ] Populate `xwoba` so Compare stops labelling it seeded.
+### Step 6 — Statcast expected stats (DONE 2026-09-07)
+Baseball Savant turned out to be unnecessary: `expectedStatistics` is a stat type on
+the endpoint we already call, for both hitting and pitching (ADR-024).
+
+- [x] Terms-of-use review (ADR-025): MLBAM permits individual, non-commercial,
+      non-bulk use only. Recorded rather than discovered later.
+- [x] Ingest expected stats as a second stat type per group; migration 0007 adds
+      `x_batting_average`, `x_slg`, `x_woba_con` beside the `xwoba` from 0001.
+- [x] Populate `xwoba` so Compare stops labelling it seeded. 419/419 hitting and
+      418/418 pitching rows covered on the ingested season.
+- [x] Guard the direction trap: a pitcher's xwOBA *against* is not his batting xwOBA.
 
 Done when: `xwoba` reports `real` and the last synthetic metric in the compare table
-disappears.
+disappears. Compare now reports three measured metrics for a hitter instead of two.
+
+Left open: the pitching expected line is stored but not served — it belongs with the
+prevention metrics (beside FIP), not in a higher-is-better hitting slot. Same for
+`x_batting_average` / `x_slg` / `x_woba_con`.
 
 ## Risks and Mitigations
 - External API schema changes:
