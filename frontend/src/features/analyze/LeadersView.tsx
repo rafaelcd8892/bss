@@ -3,8 +3,10 @@ import { Link, useOutletContext, useSearchParams } from "react-router-dom";
 import type { LeaderMetric, StatLeader } from "../../api/client";
 import type { ShellContext } from "../../components/AppShell";
 import { Card } from "../../components/Card";
+import { useTeamCatalog } from "../../useTeamCatalog";
 import { teamAccent, teamLabel } from "../../teams";
 import { METRIC_LABELS, METRIC_ORDER, QUALIFIER_UNIT, formatMetric } from "./metrics";
+import { useIngestedSeasons } from "./useIngestedSeasons";
 import { useLeaders } from "./useLeaders";
 
 const CONTROL =
@@ -23,8 +25,13 @@ export function LeadersView() {
   const limit = clampNumber(params.get("limit"), 10, 1, 100);
   const minimumParam = params.get("minimum");
   const minimum = minimumParam !== null && minimumParam !== "" ? Number(minimumParam) : null;
+  const teamId = clampNumber(params.get("team"), 0, 0, 999) || null;
+  const seasonParam = params.get("season");
+  const season = seasonParam !== null && seasonParam !== "" ? Number(seasonParam) : null;
 
-  const { data, loading, error } = useLeaders({ metric, limit, minimum });
+  const teams = useTeamCatalog();
+  const seasons = useIngestedSeasons();
+  const { data, loading, error } = useLeaders({ metric, limit, minimum, teamId, season });
 
   // The qualifier is typed into a text field, so hold it locally and only push it
   // into the URL once typing settles — otherwise every keystroke is a request.
@@ -94,6 +101,39 @@ export function LeadersView() {
         </label>
 
         <label className="flex flex-col gap-1 text-xs text-muted">
+          club
+          <select
+            value={teamId ?? ""}
+            onChange={(event) => update("team", event.target.value || null)}
+            className="w-40 rounded-md border border-line bg-surface px-2 py-1.5 text-sm text-ink outline-none"
+          >
+            <option value="">whole league</option>
+            {teams.map((team) => (
+              <option key={team.id} value={team.id}>
+                {team.name}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        {seasons.length > 1 && (
+          <label className="flex flex-col gap-1 text-xs text-muted">
+            season
+            <select
+              value={season ?? data?.season ?? ""}
+              onChange={(event) => update("season", event.target.value || null)}
+              className="rounded-md border border-line bg-surface px-2 py-1.5 text-sm text-ink outline-none"
+            >
+              {seasons.map((year) => (
+                <option key={year} value={year}>
+                  {year}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+
+        <label className="flex flex-col gap-1 text-xs text-muted">
           show
           <select
             value={limit}
@@ -131,6 +171,14 @@ export function LeadersView() {
                 : "loading…"}
             </span>
           </div>
+          {data && seasons.length > 1 && data.season !== seasons[0] && (
+            <p className="border-b border-line px-3.5 py-2 text-[11px] leading-relaxed text-faint">
+              A past season is ranked only among players whose careers were backfilled —
+              those on a current roster. Anyone who has since retired is missing, so read
+              this as the best {data.season} among today's players, not as that year's
+              leaderboard.
+            </p>
+          )}
           <LeaderTable
             metric={metric}
             leaders={data?.leaders ?? []}

@@ -231,12 +231,20 @@ def team_profiles_endpoint(
     return TeamProfileListResponse(season=resolved_season, teams=teams)
 
 
+@router.get("/stats/seasons", response_model=list[int])
+def ingested_seasons_endpoint(catalog: CatalogDependency) -> list[int]:
+    """Seasons with ingested stats, newest first, so a client can offer them."""
+
+    return catalog.get_ingested_seasons()
+
+
 @router.get("/stats/leaders", response_model=StatLeadersResponse)
 def stat_leaders_endpoint(
     catalog: CatalogDependency,
     settings: SettingsDependency,
     metric: LeaderMetric = "woba",
     season: int | None = None,
+    team_id: int | None = Query(default=None, gt=0),
     limit: int = Query(default=10, ge=1, le=100),
     minimum: float | None = Query(
         default=None,
@@ -248,11 +256,16 @@ def stat_leaders_endpoint(
     resolved_season = season if season is not None else settings.stats_season
     resolved_minimum = minimum if minimum is not None else meta.default_minimum
     leaders = catalog.get_stat_leaders(
-        metric=metric, season=resolved_season, minimum=resolved_minimum, limit=limit
+        metric=metric,
+        season=resolved_season,
+        minimum=resolved_minimum,
+        limit=limit,
+        team_id=team_id,
     )
     return StatLeadersResponse(
         metric=metric,
         season=resolved_season,
+        team_id=team_id,
         direction="higher_is_better" if meta.descending else "lower_is_better",
         qualifier=leader_qualifier_label(metric, resolved_minimum),
         leaders=leaders,

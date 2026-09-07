@@ -227,6 +227,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/stats/seasons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ingested Seasons Endpoint
+         * @description Seasons with ingested stats, newest first, so a client can offer them.
+         */
+        get: operations["ingested_seasons_endpoint_api_v1_stats_seasons_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/stats/teams": {
         parameters: {
             query?: never;
@@ -728,6 +748,8 @@ export interface components {
             qualifier: string;
             /** Season */
             season: number;
+            /** Team Id */
+            team_id?: number | null;
         };
         /** TeamListResponse */
         TeamListResponse: {
@@ -1177,6 +1199,7 @@ export interface operations {
             query?: {
                 metric?: "woba" | "xwoba" | "wrc_plus" | "obp" | "slg" | "ops" | "iso" | "babip" | "fip" | "era" | "whip" | "k_bb_ratio" | "strikeout_rate" | "walk_rate";
                 season?: number | null;
+                team_id?: number | null;
                 limit?: number;
                 /** @description Playing-time qualifier (PA for hitting, IP for pitching). */
                 minimum?: number | null;
@@ -1203,6 +1226,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ingested_seasons_endpoint_api_v1_stats_seasons_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": number[];
                 };
             };
         };

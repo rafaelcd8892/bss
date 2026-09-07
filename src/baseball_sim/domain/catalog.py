@@ -222,8 +222,16 @@ class CatalogRepository(Protocol):
     ) -> dict[int, float]: ...
 
     def get_stat_leaders(
-        self, *, metric: LeaderMetric, season: int, minimum: float, limit: int
+        self,
+        *,
+        metric: LeaderMetric,
+        season: int,
+        minimum: float,
+        limit: int,
+        team_id: int | None = None,
     ) -> list[StatLeader]: ...
+
+    def get_ingested_seasons(self) -> list[int]: ...
 
     def get_team_stat_lines(
         self, *, team_id: int, season: int
@@ -365,10 +373,32 @@ class PostgresCatalogRepository:
             rows = cursor.fetchall()
         return {int(row[0]): float(row[1]) for row in rows}
 
+    def get_ingested_seasons(self) -> list[int]:
+        """Seasons with any ingested stat line, newest first."""
+
+        with self._conn.cursor() as cursor:
+            cursor.execute("SELECT DISTINCT season FROM player_season_stats ORDER BY season DESC")
+            return [int(row[0]) for row in cursor.fetchall()]
+
     def get_stat_leaders(
-        self, *, metric: LeaderMetric, season: int, minimum: float, limit: int
+        self,
+        *,
+        metric: LeaderMetric,
+        season: int,
+        minimum: float,
+        limit: int,
+        team_id: int | None = None,
     ) -> list[StatLeader]:
         meta = LEADER_METRICS[metric]
+        # Narrowing to a club changes which row of a traded player counts: the league
+        # board wants his season total, a club board wants what he did *there*. The
+        # filter therefore runs inside the ranking, not over its result — filtering a
+        # top ten afterwards would leave a club board with however few of its players
+        # happened to make the league's list.
+        club_clause = "AND s.team_id = %s" if team_id is not None else ""
+        club_order = "" if team_id is not None else "s.team_id IS NULL DESC,"
+        club_params: tuple[int, ...] = () if team_id is None else (team_id,)
+
         # The season total per player, then rank across players. A leaderboard is about
         # the year, so a traded player's half with one club must not stand in for it.
         query = f"""
@@ -387,13 +417,16 @@ class PostgresCatalogRepository:
                   AND s.stat_group = %s
                   AND s.{meta.column} IS NOT NULL
                   AND s.{meta.qualifier_column} >= %s
-                ORDER BY s.player_id, s.team_id IS NULL DESC, s.loaded_at_utc DESC
+                  {club_clause}
+                ORDER BY s.player_id, {club_order} s.loaded_at_utc DESC
             ) latest
             ORDER BY value {"DESC" if meta.descending else "ASC"}, full_name
             LIMIT %s
         """
         with self._conn.cursor() as cursor:
-            cursor.execute(query, (season, meta.stat_group, minimum, limit))
+            # Order matches the placeholders in the query text: season, group,
+            # qualifier, the optional club, then the limit.
+            cursor.execute(query, (season, meta.stat_group, minimum, *club_params, limit))
             rows = cursor.fetchall()
 
         return [

@@ -1360,6 +1360,17 @@
           "season": {
             "title": "Season",
             "type": "integer"
+          },
+          "team_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team Id"
           }
         },
         "required": [
@@ -2151,6 +2162,23 @@
           },
           {
             "in": "query",
+            "name": "team_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Team Id"
+            }
+          },
+          {
+            "in": "query",
             "name": "limit",
             "required": false,
             "schema": {
@@ -2204,6 +2232,29 @@
           }
         },
         "summary": "Stat Leaders Endpoint"
+      }
+    },
+    "/api/v1/stats/seasons": {
+      "get": {
+        "description": "Seasons with ingested stats, newest first, so a client can offer them.",
+        "operationId": "ingested_seasons_endpoint_api_v1_stats_seasons_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "title": "Response Ingested Seasons Endpoint Api V1 Stats Seasons Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Ingested Seasons Endpoint"
       }
     },
     "/api/v1/stats/teams": {

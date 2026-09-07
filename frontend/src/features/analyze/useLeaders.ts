@@ -6,6 +6,10 @@ export type LeadersQuery = {
   limit: number;
   /** null means "let the server apply its default qualifier". */
   minimum: number | null;
+  /** null is the whole league. */
+  teamId: number | null;
+  /** null is the configured season. */
+  season: number | null;
 };
 
 export type LeadersState = {
@@ -14,7 +18,13 @@ export type LeadersState = {
   error: string | null;
 };
 
-export function useLeaders({ metric, limit, minimum }: LeadersQuery): LeadersState {
+export function useLeaders({
+  metric,
+  limit,
+  minimum,
+  teamId,
+  season,
+}: LeadersQuery): LeadersState {
   const [state, setState] = useState<LeadersState>({
     data: null,
     loading: true,
@@ -32,6 +42,8 @@ export function useLeaders({ metric, limit, minimum }: LeadersQuery): LeadersSta
             metric,
             limit,
             ...(minimum !== null ? { minimum } : {}),
+            ...(teamId !== null ? { team_id: teamId } : {}),
+            ...(season !== null ? { season } : {}),
           },
         },
       })
@@ -57,7 +69,7 @@ export function useLeaders({ metric, limit, minimum }: LeadersQuery): LeadersSta
     return () => {
       cancelled = true;
     };
-  }, [metric, limit, minimum]);
+  }, [metric, limit, minimum, teamId, season]);
 
   return state;
 }

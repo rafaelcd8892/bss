@@ -223,6 +223,8 @@ class StatLeader(BaseModel):
 class StatLeadersResponse(BaseModel):
     metric: LeaderMetric
     season: int
+    #: The club the board was narrowed to, or absent for the whole league.
+    team_id: int | None = None
     direction: Literal["higher_is_better", "lower_is_better"]
     #: Human-readable playing-time qualifier applied, e.g. "min 200 PA".
     qualifier: str

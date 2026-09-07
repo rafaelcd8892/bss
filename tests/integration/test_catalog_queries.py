@@ -99,6 +99,44 @@ class TestLeaders:
         assert [leader.player_id for leader in leaders] == [ACE, TWO_WAY]
         assert leaders[0].innings_pitched == pytest.approx(180.0)
 
+    def test_a_club_filter_narrows_the_board_against_real_sql(
+        self, catalog: PostgresCatalogRepository
+    ) -> None:
+        """A fake catalog cannot catch this one.
+
+        The club clause sits between the qualifier and the limit in the query text, so
+        its parameter has to be bound in that position. Passing it first still type
+        checks and still satisfies a unit test with a fake — it only fails when real
+        SQL runs.
+        """
+
+        hawks = catalog.get_stat_leaders(
+            metric="woba", season=SEASON, minimum=0, limit=10, team_id=HAWKS
+        )
+        assert {leader.player_id for leader in hawks} == {SLUGGER, TWO_WAY, SCRUB}
+        assert all(leader.team_id == HAWKS for leader in hawks)
+
+    def test_the_qualifier_still_applies_within_a_club(
+        self, catalog: PostgresCatalogRepository
+    ) -> None:
+        hawks = catalog.get_stat_leaders(
+            metric="woba", season=SEASON, minimum=200, limit=10, team_id=HAWKS
+        )
+        # Scrub's 50 PA is below the floor whether the board is a club or the league.
+        assert [leader.player_id for leader in hawks] == [SLUGGER, TWO_WAY]
+
+    def test_a_club_with_nobody_qualified_is_an_empty_board(
+        self, catalog: PostgresCatalogRepository
+    ) -> None:
+        assert catalog.get_stat_leaders(
+            metric="woba", season=SEASON, minimum=0, limit=10, team_id=OTTERS
+        ) == []
+
+    def test_ingested_seasons_are_reported_newest_first(
+        self, catalog: PostgresCatalogRepository
+    ) -> None:
+        assert catalog.get_ingested_seasons() == [SEASON]
+
     def test_limit_is_honoured(self, catalog: PostgresCatalogRepository) -> None:
         assert len(catalog.get_stat_leaders(
             metric="woba", season=SEASON, minimum=0, limit=1

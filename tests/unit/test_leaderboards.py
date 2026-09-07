@@ -25,6 +25,9 @@ class FakeLeaderCatalog:
         del season
         return {}
 
+    def get_ingested_seasons(self) -> list[int]:
+        return [2026, 2025]
+
     def get_player(self, *, player_id: int) -> PlayerSummary | None:
         del player_id
         return None
@@ -38,10 +41,22 @@ class FakeLeaderCatalog:
         return {}
 
     def get_stat_leaders(
-        self, *, metric: LeaderMetric, season: int, minimum: float, limit: int
+        self,
+        *,
+        metric: LeaderMetric,
+        season: int,
+        minimum: float,
+        limit: int,
+        team_id: int | None = None,
     ) -> list[StatLeader]:
         self.calls.append(
-            {"metric": metric, "season": season, "minimum": minimum, "limit": limit}
+            {
+                "metric": metric,
+                "season": season,
+                "minimum": minimum,
+                "limit": limit,
+                "team_id": team_id,
+            }
         )
         return [
             StatLeader(
@@ -99,6 +114,7 @@ def test_explicit_query_parameters_are_passed_through(catalog: FakeLeaderCatalog
         "season": 2025,
         "minimum": 80.0,
         "limit": 5,
+        "team_id": None,
     }
 
 
@@ -301,3 +317,41 @@ def test_league_profiles_are_ordered_by_team_id() -> None:
 
     ids = [team["team_id"] for team in payload["teams"]]
     assert ids == sorted(ids)
+
+
+class TestLeaderFilters:
+    """A board can be narrowed to a club and to a season."""
+
+    def test_a_club_narrows_the_ranking_itself(self, catalog: FakeLeaderCatalog) -> None:
+        """Not the ranking's result.
+
+        Filtering a finished top ten would leave a club board with however few of its
+        players happened to make the league's list — usually none.
+        """
+
+        TestClient(app).get("/api/v1/stats/leaders?metric=woba&team_id=147")
+        assert catalog.calls[0]["team_id"] == 147
+
+    def test_the_whole_league_is_the_default(self, catalog: FakeLeaderCatalog) -> None:
+        TestClient(app).get("/api/v1/stats/leaders?metric=woba")
+        assert catalog.calls[0]["team_id"] is None
+
+    def test_the_response_says_which_club_it_was_narrowed_to(
+        self, catalog: FakeLeaderCatalog
+    ) -> None:
+        del catalog
+        payload = TestClient(app).get("/api/v1/stats/leaders?team_id=147").json()
+        assert payload["team_id"] == 147
+
+    def test_a_nonsense_club_is_rejected_rather_than_queried(
+        self, catalog: FakeLeaderCatalog
+    ) -> None:
+        response = TestClient(app).get("/api/v1/stats/leaders?team_id=0")
+        assert response.status_code == 422
+        assert catalog.calls == []
+
+    def test_the_seasons_endpoint_offers_what_was_ingested(
+        self, catalog: FakeLeaderCatalog
+    ) -> None:
+        del catalog
+        assert TestClient(app).get("/api/v1/stats/seasons").json() == [2026, 2025]
