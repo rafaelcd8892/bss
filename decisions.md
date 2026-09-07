@@ -784,7 +784,60 @@ When adding a new decision, use this format:
 
 ---
 
+## ADR-029: The Event Model Is Fitted, Not Chosen
+- Date: 2026-09-07
+- Status: Accepted
+- Context:
+  - ADR-020 recorded the engine's constants as documented starting points. ADR-027
+    measured what they were worth: per-club noise matched the binomial floor exactly,
+    but the systematic spread between clubs was 1.43x too wide, and the league run
+    environment was 4.14 runs a game against a real 4.479.
+  - ADR-028 made retuning safe by moving the model into the ruleset and storing the
+    ruleset with each run.
+- Decision:
+  - Fit rather than choose. `eval/fit_event_model.py` measures both targets from the
+    ingested games and sweeps two knobs against them, and the shipped ruleset is
+    generated from its output rather than typed by hand.
+  - Take the talent target with binomial luck removed in quadrature. The observed
+    spread across real clubs is talent and luck together; the model's spread, averaged
+    over many seasons, is talent alone. Fitting one to the other directly would ask the
+    model to manufacture noise as if it were skill — the exact error ADR-027 was
+    written to prevent.
+  - Two knobs, not one, because the two defects are close to independent: sensitivity
+    moves the spread, the out base moves the run environment. Fitting sensitivity first
+    keeps the two searches from chasing each other.
+  - Scale each outcome's bounds along with its sensitivity. A clamp sized for the old
+    sensitivity bites at the wrong place under the new one and silently undoes part of
+    the fit at the extremes, which is where lopsided matchups live.
+  - Ship it as a new ruleset (`mlb_2026_fitted.json`) and leave the unfitted one in
+    place. Editing it would have changed what its recorded runs mean.
+  - A coarse grid, not an optimizer. With two nearly independent knobs and targets
+    known to a few percent, a finer search would be false precision.
+- Consequences:
+  - Runs per game 4.141 → 4.458 against a target of 4.479; talent spread 0.0659 →
+    0.0481 against 0.0457. The single-season win% range narrows from .269–.667 to
+    .331–.618, against a real .378–.611.
+  - This is fitted **in sample**, on the same season it is measured against, exactly as
+    `docs/calibration.md` already warns about the win-probability check. It removes a
+    known bias; it does not demonstrate forecasting skill. A second season of ingested
+    games would make it testable out of sample.
+  - The remaining constants — the attack and prevention weights, and which matchup term
+    drives which outcome — are still unfitted. They are shape rather than scale, and
+    nothing yet measures them.
+- Alternatives considered:
+  - Hand-tuning until the standings looked plausible (what ADR-004 exists to prevent).
+  - Fitting to the observed spread without removing luck (would have left the model
+    about 35% too wide while appearing to match).
+  - Narrowing the normalization bands in `profiles.py` instead. Measured and rejected:
+    the offense factor spans 0.193–0.689 across real clubs, which maps a real team wOBA
+    range of .304–.338 onto half of `[0, 1]`. The bands are reasonable; the
+    amplification was downstream.
+
+---
+
 ## Change Log
+- 2026-09-07: Added ADR-029; the event model is fitted against the ingested season
+  instead of chosen, and ships as its own ruleset.
 - 2026-09-07: Added ADR-028; the event model moved into the ruleset and every run now
   stores the ruleset it was played under, so retuning cannot rewrite an old replay.
 - 2026-09-07: Added ADR-027; season simulation over the real schedule with a

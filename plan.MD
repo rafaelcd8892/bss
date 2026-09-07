@@ -38,10 +38,10 @@ Open items, recommended order:
 3. Point the web replay route at `GET /games/{match_id}/play-by-play`. The backend
    now replays a run under its own stored ruleset (ADR-028); the viewer still
    re-simulates through the normal endpoint, so the guarantee does not reach the UI.
-4. Fit the factor-to-outcome mapping. Season simulation (ADR-027) measured it: the
-   per-club noise is exactly the binomial floor, but the systematic spread between
-   clubs is 51 wins where real baseball manages about 40 including luck. The constants
-   ADR-020 recorded as starting values now have a measurement to be fitted against.
+4. Re-fit out of sample once a second season is ingested. The event model is now
+   fitted (ADR-029) but in sample, on the season it is measured against — it removes a
+   known bias, it does not demonstrate skill. The attack/prevention weights are still
+   unfitted: they are shape rather than scale, and nothing measures them yet.
 5. Club logos and player headshots by URL (derivable from ids we hold; see ADR-025).
 6. Player search endpoint, to replace the club -> roster cascade in Compare.
 7. Full career history via `yearByYear` — one request returns a whole career, but the

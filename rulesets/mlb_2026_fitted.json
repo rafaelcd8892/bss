@@ -1,0 +1,62 @@
+{
+  "enable_runner_on_second_in_extras": false,
+  "enable_walkoff": true,
+  "event_model": {
+    "attack_discipline": 0.2,
+    "attack_offense": 0.45,
+    "attack_power": 0.25,
+    "attack_speed": 0.1,
+    "double": {
+      "base": 0.045,
+      "home_boost": 0.3,
+      "maximum": 0.0695,
+      "minimum": 0.0275,
+      "sensitivity": 0.0126
+    },
+    "home_run": {
+      "base": 0.035,
+      "home_boost": 0.5,
+      "maximum": 0.0735,
+      "minimum": 0.021,
+      "sensitivity": 0.0196
+    },
+    "out": {
+      "base": 0.675,
+      "home_boost": -0.6,
+      "maximum": 0.7345,
+      "minimum": 0.5665,
+      "sensitivity": -0.084
+    },
+    "prevention_command": 0.25,
+    "prevention_prevention": 0.55,
+    "prevention_range": 0.2,
+    "single": {
+      "base": 0.142,
+      "home_boost": 0.6,
+      "maximum": 0.1966,
+      "minimum": 0.1056,
+      "sensitivity": 0.035
+    },
+    "triple": {
+      "base": 0.005,
+      "home_boost": 0.0,
+      "maximum": 0.0155,
+      "minimum": 0.0029,
+      "sensitivity": 0.0049
+    },
+    "walk": {
+      "base": 0.078,
+      "home_boost": 1.0,
+      "maximum": 0.1214,
+      "minimum": 0.0549,
+      "sensitivity": 0.021
+    }
+  },
+  "home_field_event_boost": 0.015,
+  "max_innings": 21,
+  "max_plate_appearances_per_half": 80,
+  "ruleset_id": "mlb_2026_fitted_v1",
+  "runner_on_second_start_inning": 10,
+  "scheduled_innings": 9,
+  "skip_home_bottom_if_leading_after_top_final": true
+}

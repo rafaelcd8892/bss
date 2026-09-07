@@ -16,7 +16,9 @@ class Settings(BaseSettings):
     mlb_stats_backoff_seconds: float = 0.25
     mlb_stats_sport_id: int = 1
     mlb_stats_max_concurrency: int = 8
-    simulator_ruleset_path: str = "rulesets/mlb_2026_regular.json"
+    # Fitted against the ingested season (ADR-029). The unfitted
+    # `mlb_2026_regular.json` is kept so its runs stay reproducible.
+    simulator_ruleset_path: str = "rulesets/mlb_2026_fitted.json"
     stats_source: str = "synthetic"
     #: Record every simulated game so it can be recalled by match id. Off by
     #: default so the viewer keeps working with no database at all.

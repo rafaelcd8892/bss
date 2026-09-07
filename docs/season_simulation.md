@@ -33,6 +33,8 @@ built from data and half from seeds would look like one thing and be another.
 
 ## First measurement (2026, 200 seasons, 2,166 ingested games)
 
+*This is what the unfitted model produced, and what the fit below was made against.*
+
 | | simulated | real MLB |
 | --- | --- | --- |
 | runs per game | 4.14 | ~4.4 |
@@ -54,7 +56,41 @@ rather than fitted ones; this is the first measurement that says by how much, an
 which direction.
 
 Per ADR-004, the fix is to fit them against this measurement, not to hand-tune until
-the table looks plausible.
+the table looks plausible. That is what `fit_event_model` does.
+
+## Fitting
+
+    python -m baseball_sim.eval.fit_event_model --season 2026
+
+Two targets, both measured from the ingested games rather than remembered:
+
+- **run environment** — runs per team per game.
+- **talent spread** — the standard deviation of team win% with binomial luck removed.
+  The observed spread is talent and luck together; the model's spread, averaged over
+  many seasons, is talent alone. Comparing them directly would ask the model to
+  reproduce noise as if it were skill.
+
+Two knobs, chosen because they are nearly independent. `sensitivity` scales every
+outcome's response to the matchup — it moves the spread and barely touches the run
+environment. `out_base_shift` moves the league-average out rate — it moves the run
+environment and barely touches the spread. The bounds scale with the sensitivity, or a
+clamp sized for the old one would bite in the wrong place and quietly undo part of the
+fit at the extremes.
+
+The search is a coarse sweep, not an optimizer: with two nearly independent knobs and
+targets known to a few percent, anything cleverer would be false precision.
+
+### Result (`rulesets/mlb_2026_fitted.json`, sensitivity 0.7, out base −0.020)
+
+| | unfitted | fitted | real |
+| --- | --- | --- | --- |
+| runs per game | 4.141 | **4.458** | 4.479 |
+| talent spread (SD of win%) | 0.0659 | **0.0481** | 0.0457 |
+| single-season win% range | .269 – .667 | **.331 – .618** | .378 – .611 |
+
+The unfitted ruleset is kept rather than edited, so runs recorded under it stay
+reproducible — and since every run stores its own ruleset (ADR-028), replaying one
+plays it under the rules it was recorded under, not these.
 
 ## Cost
 
