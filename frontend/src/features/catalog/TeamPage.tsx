@@ -1,6 +1,8 @@
 import { Link, useOutletContext, useParams } from "react-router-dom";
 import type { ShellContext } from "../../components/AppShell";
 import { Card } from "../../components/Card";
+import { PlayerHeadshot } from "../../components/PlayerHeadshot";
+import { TeamLogo } from "../../components/TeamLogo";
 import { teamAccent, teamLabel } from "../../teams";
 import { useRoster } from "../../useRoster";
 import { useTeamProfile } from "./hooks";
@@ -46,6 +48,7 @@ export function TeamPage() {
       <Card>
         <div className="flex items-center gap-3">
           <span className="h-8 w-1.5 shrink-0 rounded-sm" style={{ background: accent }} aria-hidden />
+          <TeamLogo teamId={id} dark={dark} size={34} />
           <div className="min-w-0">
             <h2 className="truncate text-base font-medium text-ink">{label.name}</h2>
             <p className="text-xs text-muted">
@@ -120,6 +123,12 @@ export function TeamPage() {
                   to={`/explore/players/${player.player_id}`}
                   className="flex items-center gap-3 px-3.5 py-1.5 transition-colors hover:bg-raised"
                 >
+                  <PlayerHeadshot
+                    playerId={player.player_id}
+                    name={player.full_name}
+                    size={26}
+                    accent={accent}
+                  />
                   <span className="w-9 shrink-0 font-mono text-[11px] text-faint">
                     {player.primary_position ?? "—"}
                   </span>

@@ -22,10 +22,33 @@ const SPEEDS = [
 const BUTTON =
   "rounded-md border border-line bg-surface px-2 py-1 text-xs text-muted transition-colors hover:text-ink disabled:cursor-not-allowed disabled:opacity-40";
 
-export function GameViewer({ dark }: { dark: boolean }) {
+/**
+ * A recorded game, already fetched and played under the ruleset it was stored with.
+ *
+ * The viewer renders it rather than re-simulating: re-running the matchup here would
+ * use whatever ruleset the server is configured with today, which is not the game that
+ * was recorded (ADR-028).
+ */
+export type ReplayContext = {
+  matchId: string;
+  rulesetId: string | null;
+  seed: number;
+  result: PlayByPlayResult;
+};
+
+export function GameViewer({ dark, replay }: { dark: boolean; replay?: ReplayContext }) {
   const initial = useRef(readParams());
-  const [form, setForm] = useState<GameParams>(initial.current.params);
-  const [result, setResult] = useState<PlayByPlayResult | null>(null);
+  const [form, setForm] = useState<GameParams>(() =>
+    replay
+      ? {
+          homeTeamId: replay.result.summary.home_team_id,
+          awayTeamId: replay.result.summary.away_team_id,
+          seed: replay.seed,
+          innings: replay.result.summary.innings_played,
+        }
+      : initial.current.params,
+  );
+  const [result, setResult] = useState<PlayByPlayResult | null>(replay?.result ?? null);
   const [index, setIndex] = useState(-1);
   const [playing, setPlaying] = useState(false);
   const [speedMs, setSpeedMs] = useState(700);
@@ -61,10 +84,15 @@ export function GameViewer({ dark }: { dark: boolean }) {
     syncUrl(params);
   }, []);
 
-  // A URL that already carries a matchup is a replay link: play it straight away.
+  // A URL that already carries a matchup is a replay link: play it straight away. A
+  // recorded replay is already loaded, so it starts rather than being re-simulated.
   useEffect(() => {
+    if (replay) {
+      setPlaying(true);
+      return;
+    }
     if (initial.current.fromUrl) void simulate(initial.current.params);
-  }, [simulate]);
+  }, [simulate, replay]);
 
   useEffect(() => {
     if (!playing) return;
@@ -138,7 +166,11 @@ export function GameViewer({ dark }: { dark: boolean }) {
 
   async function copyLink() {
     try {
-      await navigator.clipboard.writeText(shareUrl(form));
+      // A replay's link is its match id, not its matchup: the matchup alone would be
+      // re-simulated under today's ruleset rather than the one it was recorded with.
+      await navigator.clipboard.writeText(
+        replay ? window.location.href : shareUrl(form),
+      );
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1600);
     } catch {
@@ -149,6 +181,18 @@ export function GameViewer({ dark }: { dark: boolean }) {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-end gap-3 rounded-md border border-line bg-surface px-3.5 py-3">
+        {replay ? (
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <span className="text-xs text-faint">recorded game</span>
+            <span className="truncate font-mono text-[13px] text-ink">{replay.matchId}</span>
+            <span className="text-[11px] text-faint">
+              {replay.rulesetId
+                ? `played under ${replay.rulesetId}`
+                : "played under the rules stored with it"}
+            </span>
+          </div>
+        ) : (
+        <>
         <div className="w-44">
           <TeamPicker
             label="away"
@@ -192,6 +236,8 @@ export function GameViewer({ dark }: { dark: boolean }) {
         >
           {loading ? "simulating…" : "simulate"}
         </button>
+        </>
+        )}
 
         <div className="ml-auto flex items-center gap-1.5">
           <button onClick={() => setPlaying((p) => !p)} disabled={!plays.length} className={BUTTON}>
@@ -243,6 +289,7 @@ export function GameViewer({ dark }: { dark: boolean }) {
         outs={current?.outs_after ?? 0}
         homeAccent={accents.home}
         awayAccent={accents.away}
+        dark={dark}
       />
 
       {plays.length > 0 && (

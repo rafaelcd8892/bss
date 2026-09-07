@@ -3,6 +3,7 @@ import { useOutletContext, useSearchParams } from "react-router-dom";
 import type { TeamProfile } from "../../api/client";
 import type { ShellContext } from "../../components/AppShell";
 import { Card } from "../../components/Card";
+import { TeamLogo } from "../../components/TeamLogo";
 import { teamAccent, teamLabel } from "../../teams";
 import { useTeamProfiles } from "./useTeamProfiles";
 
@@ -210,6 +211,7 @@ function TeamRow({ team, dark }: { team: TeamProfile; dark: boolean }) {
             style={{ background: accent }}
             aria-hidden
           />
+          <TeamLogo teamId={team.team_id} dark={dark} size={18} />
           <span className="text-xs text-ink">{label.abbr}</span>
           {team.source === "synthetic" && (
             <span className="rounded bg-raised px-1 text-[10px] text-faint">seeded</span>

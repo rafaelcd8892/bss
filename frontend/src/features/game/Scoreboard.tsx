@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { TeamLogo } from "../../components/TeamLogo";
 import { teamLabel } from "../../teams";
 
 type ScoreboardProps = {
@@ -11,6 +12,7 @@ type ScoreboardProps = {
   outs: number;
   homeAccent: string;
   awayAccent: string;
+  dark: boolean;
 };
 
 export function Scoreboard({
@@ -23,6 +25,7 @@ export function Scoreboard({
   outs,
   homeAccent,
   awayAccent,
+  dark,
 }: ScoreboardProps) {
   const home = teamLabel(homeTeamId);
   const away = teamLabel(awayTeamId);
@@ -30,6 +33,8 @@ export function Scoreboard({
   return (
     <div className="flex items-stretch gap-2.5">
       <TeamCard
+        teamId={awayTeamId}
+        dark={dark}
         name={away.name}
         abbr={away.abbr}
         accent={awayAccent}
@@ -58,6 +63,8 @@ export function Scoreboard({
         <div className="font-mono text-xs text-faint">{outs} out{outs === 1 ? "" : "s"}</div>
       </div>
       <TeamCard
+        teamId={homeTeamId}
+        dark={dark}
         name={home.name}
         abbr={home.abbr}
         accent={homeAccent}
@@ -71,6 +78,8 @@ export function Scoreboard({
 }
 
 type TeamCardProps = {
+  teamId: number;
+  dark: boolean;
   name: string;
   abbr: string;
   accent: string;
@@ -80,11 +89,27 @@ type TeamCardProps = {
   align: "left" | "right";
 };
 
-function TeamCard({ name, abbr, accent, score, batting, side, align }: TeamCardProps) {
+function TeamCard({
+  teamId,
+  dark,
+  name,
+  abbr,
+  accent,
+  score,
+  batting,
+  side,
+  align,
+}: TeamCardProps) {
   const pop = useScorePop(score);
   const meta = (
     <div className={`min-w-0 flex-1 ${align === "right" ? "text-right" : "text-left"}`}>
-      <div className="truncate text-sm font-medium text-ink">{name}</div>
+      <div
+        className={`flex items-center gap-1.5 ${align === "right" ? "justify-end" : ""}`}
+      >
+        {align === "left" && <TeamLogo teamId={teamId} dark={dark} size={22} />}
+        <div className="truncate text-sm font-medium text-ink">{name}</div>
+        {align === "right" && <TeamLogo teamId={teamId} dark={dark} size={22} />}
+      </div>
       <div
         className={`flex items-center gap-1 text-xs text-faint ${
           align === "right" ? "justify-end" : ""

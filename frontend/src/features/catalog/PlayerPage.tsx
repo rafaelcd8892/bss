@@ -2,6 +2,7 @@ import { Link, useOutletContext, useParams } from "react-router-dom";
 import type { components } from "../../api/schema";
 import type { ShellContext } from "../../components/AppShell";
 import { Card } from "../../components/Card";
+import { PlayerHeadshot } from "../../components/PlayerHeadshot";
 import { teamAccent, teamLabel } from "../../teams";
 import { formatMetric } from "../analyze/metrics";
 import { usePlayerSeason } from "./hooks";
@@ -58,6 +59,12 @@ export function PlayerPage() {
       <Card>
         <div className="flex items-center gap-3">
           <span className="h-8 w-1.5 shrink-0 rounded-sm" style={{ background: accent }} aria-hidden />
+          <PlayerHeadshot
+            playerId={data.player.player_id}
+            name={data.player.full_name}
+            size={44}
+            accent={accent}
+          />
           <div className="min-w-0">
             <h2 className="truncate text-base font-medium text-ink">{data.player.full_name}</h2>
             <p className="text-xs text-muted">

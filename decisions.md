@@ -836,6 +836,8 @@ When adding a new decision, use this format:
 ---
 
 ## Change Log
+- 2026-09-07: Closed ADR-028's open gap — the web replay route now uses the faithful
+  replay endpoint, and club logos and player headshots are referenced per ADR-025.
 - 2026-09-07: Added ADR-029; the event model is fitted against the ingested season
   instead of chosen, and ships as its own ruleset.
 - 2026-09-07: Added ADR-028; the event model moved into the ruleset and every run now

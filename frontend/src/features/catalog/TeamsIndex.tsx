@@ -1,4 +1,5 @@
 import { Link, useOutletContext } from "react-router-dom";
+import { TeamLogo } from "../../components/TeamLogo";
 import type { ShellContext } from "../../components/AppShell";
 import { Card } from "../../components/Card";
 import { teamAccent } from "../../teams";
@@ -27,6 +28,7 @@ export function TeamsIndex() {
                   style={{ background: teamAccent(team.id, dark) }}
                   aria-hidden
                 />
+                <TeamLogo teamId={team.id} dark={dark} size={22} />
                 <span className="min-w-0 flex-1 truncate text-[13px] text-ink">{team.name}</span>
                 <span className="font-mono text-[11px] text-faint">{team.abbr}</span>
               </Link>

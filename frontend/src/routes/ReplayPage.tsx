@@ -1,23 +1,28 @@
 import { useEffect, useState } from "react";
-import { Link, Navigate, useParams } from "react-router-dom";
+import { Link, useOutletContext, useParams } from "react-router-dom";
 import { api } from "../api/client";
+import type { ShellContext } from "../components/AppShell";
 import { Card } from "../components/Card";
-import type { GameParams } from "../features/game/url";
+import { GameViewer, type ReplayContext } from "../features/game/GameViewer";
 
 type State =
   | { status: "loading" }
-  | { status: "found"; params: GameParams }
+  | { status: "found"; replay: ReplayContext }
   | { status: "missing" }
+  | { status: "unfaithful" }
   | { status: "error" };
 
 /**
  * A recorded game, recalled by match id.
  *
- * The stored context *is* the replay: the simulation is deterministic, so handing the
- * saved matchup and seed back to the viewer reproduces the game exactly rather than
- * replaying a cached copy of it.
+ * The server replays it under the ruleset stored with the run, so retuning the model
+ * cannot change what an old link shows (ADR-028). Handing the matchup back to the
+ * normal simulate endpoint would instead play it under today's rules while still
+ * calling it the original — which is why this fetches the replay rather than the
+ * matchup.
  */
 export function ReplayPage() {
+  const { dark } = useOutletContext<ShellContext>();
   const { matchId } = useParams();
   const [state, setState] = useState<State>({ status: "loading" });
 
@@ -28,27 +33,39 @@ export function ReplayPage() {
     }
     let cancelled = false;
 
-    api
-      .GET("/api/v1/games/{match_id}", { params: { path: { match_id: matchId } } })
-      .then(({ data, error }) => {
-        if (cancelled) return;
-        if (error || !data) {
-          setState({ status: "missing" });
-          return;
-        }
-        setState({
-          status: "found",
-          params: {
-            homeTeamId: data.home_team_id,
-            awayTeamId: data.away_team_id,
-            seed: data.context.seed,
-            innings: data.innings,
-          },
-        });
-      })
-      .catch(() => {
-        if (!cancelled) setState({ status: "error" });
+    async function load(id: string) {
+      const run = await api.GET("/api/v1/games/{match_id}", {
+        params: { path: { match_id: id } },
       });
+      if (cancelled) return;
+      if (run.error || !run.data) {
+        setState({ status: "missing" });
+        return;
+      }
+      const replayed = await api.GET("/api/v1/games/{match_id}/play-by-play", {
+        params: { path: { match_id: id } },
+      });
+      if (cancelled) return;
+      if (replayed.error || !replayed.data) {
+        // The run predates stored rulesets, so it cannot be replayed faithfully. The
+        // server refuses rather than guessing, and so does the page.
+        setState({ status: "unfaithful" });
+        return;
+      }
+      setState({
+        status: "found",
+        replay: {
+          matchId: id,
+          rulesetId: run.data.ruleset_id ?? null,
+          seed: run.data.context.seed,
+          result: replayed.data.result,
+        },
+      });
+    }
+
+    void load(matchId).catch(() => {
+      if (!cancelled) setState({ status: "error" });
+    });
 
     return () => {
       cancelled = true;
@@ -56,14 +73,7 @@ export function ReplayPage() {
   }, [matchId]);
 
   if (state.status === "found") {
-    const { homeTeamId, awayTeamId, seed, innings } = state.params;
-    const query = new URLSearchParams({
-      home: String(homeTeamId),
-      away: String(awayTeamId),
-      seed: String(seed),
-    });
-    if (innings !== 9) query.set("innings", String(innings));
-    return <Navigate to={`/game?${query}`} replace />;
+    return <GameViewer dark={dark} replay={state.replay} />;
   }
 
   if (state.status === "loading") {
@@ -79,11 +89,22 @@ export function ReplayPage() {
       <p className="text-[13px] text-ink">
         {state.status === "missing"
           ? "No recorded game with that id."
-          : "Could not reach the API."}
+          : state.status === "unfaithful"
+            ? "This game was recorded before its rules were stored with it."
+            : "Could not reach the API."}
       </p>
       <p className="mt-1.5 text-xs text-muted">
-        Recording is opt-in: the API stores runs only when{" "}
-        <span className="font-mono">BASEBALL_PERSIST_SIMULATION_RUNS</span> is on.
+        {state.status === "unfaithful" ? (
+          <>
+            Replaying it now would use the current ruleset, which is not the one it was
+            played under — so it would be a different game wearing the same id.
+          </>
+        ) : (
+          <>
+            Recording is opt-in: the API stores runs only when{" "}
+            <span className="font-mono">BASEBALL_PERSIST_SIMULATION_RUNS</span> is on.
+          </>
+        )}
       </p>
       <Link to="/game" className="mt-2 inline-block text-xs text-muted hover:text-ink">
         Back to the game viewer

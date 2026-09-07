@@ -35,20 +35,16 @@ Open items, recommended order:
 2. Serve the widened metrics already stored: OBP/SLG/OPS/ISO/BABIP/ERA/WHIP, the
    rates, and the expected line — through the player endpoint, Explore, and as
    leaderboard metrics.
-3. Point the web replay route at `GET /games/{match_id}/play-by-play`. The backend
-   now replays a run under its own stored ruleset (ADR-028); the viewer still
-   re-simulates through the normal endpoint, so the guarantee does not reach the UI.
-4. Re-fit out of sample once a second season is ingested. The event model is now
+3. Re-fit out of sample once a second season is ingested. The event model is now
    fitted (ADR-029) but in sample, on the season it is measured against — it removes a
    known bias, it does not demonstrate skill. The attack/prevention weights are still
    unfitted: they are shape rather than scale, and nothing measures them yet.
-5. Club logos and player headshots by URL (derivable from ids we hold; see ADR-025).
-6. Player search endpoint, to replace the club -> roster cascade in Compare.
-7. Full career history via `yearByYear` — one request returns a whole career, but the
+4. Player search endpoint, to replace the club -> roster cascade in Compare.
+5. Full career history via `yearByYear` — one request returns a whole career, but the
    parser reads only the first split and the primary key has no team, so a traded
    player's three splits collide. Both need deciding first.
-8. Game-level history, so calibration can be a real out-of-sample backtest.
-9. Viewer polish: runner motion along the basepath, mobile layout (<720px) review.
+6. Game-level history, so calibration can be a real out-of-sample backtest.
+7. Viewer polish: runner motion along the basepath, mobile layout (<720px) review.
 Run locally: `uvicorn baseball_sim.main:app --port 8000` + `cd frontend && npm run dev`
 (or `preview_start` the `app` and `web` configs in `.claude/launch.json`).
 
