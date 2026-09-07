@@ -237,7 +237,13 @@ def _pitching_factors(
 
 
 def aggregate_batting(lines: Sequence[RawBattingLine]) -> RawBattingLine:
-    """Sum batting lines into a single team line."""
+    """Sum batting lines into one.
+
+    Every counting field is summed, including the widened ones, so the result supports
+    the same metrics a single line does. That matters wherever a rate is wanted over
+    several lines: a rate must be recomputed from the summed components, never averaged
+    across them, or a 100-plate-appearance season would weigh the same as a 700.
+    """
 
     return RawBattingLine(
         plate_appearances=sum(line.plate_appearances for line in lines),
@@ -252,11 +258,19 @@ def aggregate_batting(lines: Sequence[RawBattingLine]) -> RawBattingLine:
         sacrifice_flies=sum(line.sacrifice_flies for line in lines),
         strikeouts=sum(line.strikeouts for line in lines),
         stolen_bases=sum(line.stolen_bases for line in lines),
+        runs=sum(line.runs for line in lines),
+        runs_batted_in=sum(line.runs_batted_in for line in lines),
+        caught_stealing=sum(line.caught_stealing for line in lines),
+        sacrifice_bunts=sum(line.sacrifice_bunts for line in lines),
+        ground_into_double_play=sum(line.ground_into_double_play for line in lines),
+        ground_outs=sum(line.ground_outs for line in lines),
+        air_outs=sum(line.air_outs for line in lines),
+        games_played=sum(line.games_played for line in lines),
     )
 
 
 def aggregate_pitching(lines: Sequence[RawPitchingLine]) -> RawPitchingLine:
-    """Sum pitching lines into a single team line."""
+    """Sum pitching lines into one. See :func:`aggregate_batting` on rates."""
 
     return RawPitchingLine(
         innings_pitched=round(sum(line.innings_pitched for line in lines), 2),
@@ -264,4 +278,11 @@ def aggregate_pitching(lines: Sequence[RawPitchingLine]) -> RawPitchingLine:
         walks=sum(line.walks for line in lines),
         hit_by_pitch=sum(line.hit_by_pitch for line in lines),
         home_runs=sum(line.home_runs for line in lines),
+        batters_faced=sum(line.batters_faced for line in lines),
+        earned_runs=sum(line.earned_runs for line in lines),
+        hits_allowed=sum(line.hits_allowed for line in lines),
+        ground_outs=sum(line.ground_outs for line in lines),
+        air_outs=sum(line.air_outs for line in lines),
+        games_played=sum(line.games_played for line in lines),
+        games_started=sum(line.games_started for line in lines),
     )

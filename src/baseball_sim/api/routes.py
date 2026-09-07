@@ -4,6 +4,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from baseball_sim.config import Settings, get_settings
+from baseball_sim.domain.career import batting_total, pitching_total
 from baseball_sim.domain.catalog import (
     LEADER_METRICS,
     CatalogRepository,
@@ -307,12 +308,20 @@ def get_player_career_endpoint(
     by_season: dict[int, list[PlayerSeasonLine]] = {}
     for season, line in catalog.get_player_career(player_id=player_id):
         by_season.setdefault(season, []).append(line)
+
+    batting, pitching = catalog.get_player_career_raw(player_id=player_id)
+    totals = [
+        total
+        for total in (batting_total(batting), pitching_total(pitching))
+        if total is not None
+    ]
     return PlayerCareerResponse(
         player=player,
         seasons=[
             SeasonLines(season=season, lines=lines)
             for season, lines in sorted(by_season.items(), reverse=True)
         ],
+        totals=totals,
     )
 
 

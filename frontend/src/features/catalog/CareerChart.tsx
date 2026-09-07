@@ -33,6 +33,9 @@ export function CareerChart({
   seasons: SeasonLines[];
   accent: string;
 }) {
+  // Collapsed by default: the season table below says more, and the chart is a second
+  // look at the same numbers rather than the first one.
+  const [open, setOpen] = useState(false);
   const groups = useMemo(() => {
     const present = new Set(seasons.flatMap((s) => s.lines.map((l) => l.stat_group)));
     return (["hitting", "pitching"] as const).filter((g) => present.has(g));
@@ -61,9 +64,18 @@ export function CareerChart({
 
   return (
     <Card padded={false}>
-      <div className="flex flex-wrap items-center gap-2 border-b border-line px-3.5 py-2.5">
-        <span className="text-sm font-medium text-ink">Career</span>
-        {groups.length > 1 && (
+      <div className="flex flex-wrap items-center gap-2 px-3.5 py-2.5">
+        <button
+          onClick={() => setOpen((previous) => !previous)}
+          aria-expanded={open}
+          className="flex items-center gap-1.5 text-sm font-medium text-ink"
+        >
+          <span aria-hidden className="text-[10px] text-faint">
+            {open ? "▼" : "▶"}
+          </span>
+          Career chart
+        </button>
+        {open && groups.length > 1 && (
           <div className="flex gap-1">
             {groups.map((name) => (
               <button
@@ -82,6 +94,7 @@ export function CareerChart({
             ))}
           </div>
         )}
+        {open && (
         <div className="ml-auto flex flex-wrap gap-1">
           {available.map((name) => (
             <button
@@ -97,13 +110,16 @@ export function CareerChart({
             </button>
           ))}
         </div>
+        )}
       </div>
-      {points.length < 2 ? (
+      {!open ? null : points.length < 2 ? (
         <p className="px-3.5 py-5 text-[13px] text-muted">
           No {METRIC_LABELS[metric]} recorded across enough seasons to plot.
         </p>
       ) : (
-        <Trajectory points={points} metric={metric} accent={accent} />
+        <div className="border-t border-line">
+          <Trajectory points={points} metric={metric} accent={accent} />
+        </div>
       )}
     </Card>
   );

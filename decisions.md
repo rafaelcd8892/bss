@@ -888,6 +888,8 @@ When adding a new decision, use this format:
 ---
 
 ## Change Log
+- 2026-09-07: Added a season-by-season career table with server-computed totals, and
+  collapsed the career chart behind it.
 - 2026-09-07: Served the widened metrics and added career trajectory charts — the
   ingested history and the stored-but-unserved metrics both reach the UI.
 - 2026-09-07: Added ADR-030; every stat split is kept, so traded players count toward

@@ -342,6 +342,14 @@
             },
             "title": "Seasons",
             "type": "array"
+          },
+          "totals": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/PlayerSeasonLine"
+            },
+            "title": "Totals",
+            "type": "array"
           }
         },
         "required": [

@@ -156,6 +156,10 @@ class PlayerCareerResponse(BaseModel):
 
     player: PlayerSummary
     seasons: list[SeasonLines]
+    #: Every season summed, with each rate recomputed from the totals rather than
+    #: averaged across seasons. `xwoba` and `wrc_plus` are absent by design — see
+    #: `domain/career.py`.
+    totals: list[PlayerSeasonLine] = []
 
 
 class PlayerSeasonResponse(BaseModel):

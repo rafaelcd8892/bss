@@ -6,6 +6,7 @@ import { PlayerHeadshot } from "../../components/PlayerHeadshot";
 import { teamAccent, teamLabel } from "../../teams";
 import { formatMetric } from "../analyze/metrics";
 import { CareerChart } from "./CareerChart";
+import { CareerTable } from "./CareerTable";
 import { usePlayerCareer, usePlayerSeason } from "./hooks";
 
 type Line = components["schemas"]["PlayerSeasonLine"];
@@ -144,7 +145,16 @@ export function PlayerPage() {
         data.lines.map((line) => <SeasonLine key={line.stat_group} line={line} />)
       )}
 
-      {career.data && <CareerChart seasons={career.data.seasons} accent={accent} />}
+      {career.data && (
+        <>
+          <CareerTable
+            seasons={career.data.seasons}
+            totals={career.data.totals}
+            dark={dark}
+          />
+          <CareerChart seasons={career.data.seasons} accent={accent} />
+        </>
+      )}
     </div>
   );
 }

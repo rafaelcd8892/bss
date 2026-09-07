@@ -19,12 +19,17 @@ class FakePlayerCatalog:
         self.requested: list[tuple[int, int]] = []
         self.seasons: list[int] = [2026]
         self.career: list[tuple[int, PlayerSeasonLine]] = []
+        self.raw: tuple[list, list] = ([], [])
 
     def get_player_career(
         self, *, player_id: int
     ) -> list[tuple[int, PlayerSeasonLine]]:
         del player_id
         return self.career
+
+    def get_player_career_raw(self, *, player_id: int) -> tuple[list, list]:
+        del player_id
+        return self.raw
 
     def get_player_seasons(self, *, player_id: int) -> list[int]:
         del player_id

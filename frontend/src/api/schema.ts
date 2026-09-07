@@ -403,6 +403,11 @@ export interface components {
             player: components["schemas"]["PlayerSummary"];
             /** Seasons */
             seasons: components["schemas"]["SeasonLines"][];
+            /**
+             * Totals
+             * @default []
+             */
+            totals: components["schemas"]["PlayerSeasonLine"][];
         };
         /**
          * PlayerSeasonLine

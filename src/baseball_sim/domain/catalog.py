@@ -248,6 +248,10 @@ class CatalogRepository(Protocol):
         self, *, player_id: int
     ) -> list[tuple[int, PlayerSeasonLine]]: ...
 
+    def get_player_career_raw(
+        self, *, player_id: int
+    ) -> tuple[list[RawBattingLine], list[RawPitchingLine]]: ...
+
     def get_completed_games(self, *, season: int) -> list[CompletedGame]: ...
 
     def get_season_schedule(self, *, season: int) -> list[ScheduledGame]: ...
@@ -482,6 +486,29 @@ class PostgresCatalogRepository:
             cursor.execute(query, (player_id, season))
             rows = cursor.fetchall()
         return [line for line in (player_line_from_row(row) for row in rows) if line]
+
+    def get_player_career_raw(
+        self, *, player_id: int
+    ) -> tuple[list[RawBattingLine], list[RawPitchingLine]]:
+        """A career's raw counting lines, one per season, for summing into a total.
+
+        The season total is preferred over a club stint, so a traded year contributes
+        once rather than twice.
+        """
+
+        query = f"""
+            SELECT DISTINCT ON (season, stat_group) {SEASON_STATS_COLUMNS}
+            FROM player_season_stats
+            WHERE player_id = %s
+            ORDER BY season, stat_group, team_id IS NULL DESC, loaded_at_utc DESC
+        """
+        with self._conn.cursor() as cursor:
+            cursor.execute(query, (player_id,))
+            rows = cursor.fetchall()
+
+        batting = [batting_line_from_row(row) for row in rows if str(row[2]) == "hitting"]
+        pitching = [pitching_line_from_row(row) for row in rows if str(row[2]) == "pitching"]
+        return batting, pitching
 
     def get_player_career(self, *, player_id: int) -> list[tuple[int, PlayerSeasonLine]]:
         """Every ingested season for one player, newest first.

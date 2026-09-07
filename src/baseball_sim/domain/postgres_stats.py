@@ -24,16 +24,27 @@ from baseball_sim.sim.sabermetrics import (
 )
 
 #: Column order every season-stats row parser below expects.
+#:
+#: The widened components trail the original set so existing positional reads keep
+#: working. They are not optional decoration: without them a reconstructed line reports
+#: no earned runs and no hits allowed, so ERA, WHIP and the per-batter rates silently
+#: collapse to zero or vanish.
 SEASON_STATS_COLUMNS = """player_id, team_id, stat_group,
            ip, at_bats, singles, doubles, triples, home_runs,
            walks, intentional_walks, hit_by_pitch, sacrifice_flies,
-           strikeouts, stolen_bases, pa, xwoba"""
+           strikeouts, stolen_bases, pa, xwoba,
+           runs, runs_batted_in, caught_stealing, sacrifice_bunts,
+           ground_into_double_play, ground_outs, air_outs, games_played,
+           batters_faced, earned_runs, hits_allowed, games_started"""
 
 _SELECT_SEASON_STATS = """
     SELECT player_id, team_id, stat_group,
            ip, at_bats, singles, doubles, triples, home_runs,
            walks, intentional_walks, hit_by_pitch, sacrifice_flies,
-           strikeouts, stolen_bases, pa, xwoba
+           strikeouts, stolen_bases, pa, xwoba,
+           runs, runs_batted_in, caught_stealing, sacrifice_bunts,
+           ground_into_double_play, ground_outs, air_outs, games_played,
+           batters_faced, earned_runs, hits_allowed, games_started
     FROM player_season_stats
     WHERE season = %s
     ORDER BY loaded_at_utc
@@ -179,6 +190,12 @@ def _float(value: Any) -> float:
     return float(value) if value is not None else 0.0
 
 
+def _wide(row: tuple[Any, ...], index: int) -> int:
+    """A widened column, tolerant of a row selected before they were added."""
+
+    return _int(row[index]) if len(row) > index else 0
+
+
 def batting_line_from_row(row: tuple[Any, ...]) -> RawBattingLine:
     """Parse a SEASON_STATS_COLUMNS row into a batting line."""
 
@@ -195,6 +212,14 @@ def batting_line_from_row(row: tuple[Any, ...]) -> RawBattingLine:
         sacrifice_flies=_int(row[12]),
         strikeouts=_int(row[13]),
         stolen_bases=_int(row[14]),
+        runs=_wide(row, 17),
+        runs_batted_in=_wide(row, 18),
+        caught_stealing=_wide(row, 19),
+        sacrifice_bunts=_wide(row, 20),
+        ground_into_double_play=_wide(row, 21),
+        ground_outs=_wide(row, 22),
+        air_outs=_wide(row, 23),
+        games_played=_wide(row, 24),
     )
 
 
@@ -207,6 +232,13 @@ def pitching_line_from_row(row: tuple[Any, ...]) -> RawPitchingLine:
         walks=_int(row[9]),
         hit_by_pitch=_int(row[11]),
         home_runs=_int(row[8]),
+        batters_faced=_wide(row, 25),
+        earned_runs=_wide(row, 26),
+        hits_allowed=_wide(row, 27),
+        ground_outs=_wide(row, 22),
+        air_outs=_wide(row, 23),
+        games_played=_wide(row, 24),
+        games_started=_wide(row, 28),
     )
 
 

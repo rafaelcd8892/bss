@@ -41,6 +41,9 @@ Open items, recommended order:
    way a player already can.
 5. Game-level history, so calibration can be a real out-of-sample backtest.
 6. Viewer polish: runner motion along the basepath, mobile layout (<720px) review.
+7. The career chart is collapsed by default and is the weaker of the two views. Either
+   make it earn its place — league context, a rate-vs-playing-time axis — or drop it
+   now that the season table carries the same numbers better.
 Run locally: `uvicorn baseball_sim.main:app --port 8000` + `cd frontend && npm run dev`
 (or `preview_start` the `app` and `web` configs in `.claude/launch.json`).
 

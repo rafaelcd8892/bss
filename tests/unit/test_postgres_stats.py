@@ -1,6 +1,12 @@
 from typing import Any
 
-from baseball_sim.domain.postgres_stats import build_stat_line_provider_from_rows
+import pytest
+
+from baseball_sim.domain.postgres_stats import (
+    batting_line_from_row,
+    build_stat_line_provider_from_rows,
+    pitching_line_from_row,
+)
 from baseball_sim.domain.stats_provider import SyntheticStatsProvider
 
 # Column order mirrors postgres_stats._SELECT_SEASON_STATS:
@@ -114,3 +120,51 @@ def test_a_pitchers_expected_woba_against_is_not_his_batting_xwoba() -> None:
 def test_xwoba_stays_seeded_when_statcast_was_not_ingested() -> None:
     provider = build_stat_line_provider_from_rows(rows=[hitting_row_with_xwoba(100, None)])
     assert provider.player_rating(player_id=100, seed=1).sources["xwoba"] == "synthetic"
+
+
+# The full SEASON_STATS_COLUMNS row, including the widened components.
+WIDE_PITCHING_ROW: tuple[Any, ...] = (
+    200, 147, "pitching", 220.67, None, None, None, None, 23, 51, None, 4, None,
+    300, None, None, None,
+    None, None, None, None, None, 200, 150, 33, 850, 63, 150, 33,
+)
+WIDE_HITTING_ROW: tuple[Any, ...] = (
+    100, 147, "hitting", None, 540, 112, 30, 3, 35, 50, 5, 6, 4, 120, 10, 600, 0.41,
+    90, 100, 4, 1, 12, 180, 160, 150, None, None, None, None,
+)
+
+
+class TestWidenedComponentsSurviveTheRoundTrip:
+    """Regression guard for a bug the unit tests could not see.
+
+    The career total is built by summing reconstructed lines. The column list left out
+    earned runs, hits allowed and batters faced, so every reconstructed pitching line
+    carried zeros there — and a nineteen-year career reported an ERA of 0.00 and a WHIP
+    of 0.27. The tests all passed, because they built the lines directly instead of
+    reading them back through a row.
+    """
+
+    def test_a_pitching_row_reconstructs_the_run_prevention_inputs(self) -> None:
+        line = pitching_line_from_row(WIDE_PITCHING_ROW)
+        assert (line.earned_runs, line.hits_allowed, line.batters_faced) == (63, 150, 850)
+
+    def test_a_batting_row_reconstructs_its_widened_counts(self) -> None:
+        line = batting_line_from_row(WIDE_HITTING_ROW)
+        assert (line.runs, line.runs_batted_in, line.ground_outs) == (90, 100, 180)
+
+    def test_a_narrow_row_still_parses(self) -> None:
+        """A caller selecting the older column set must not start raising."""
+
+        narrow = WIDE_PITCHING_ROW[:17]
+        line = pitching_line_from_row(narrow)
+        assert line.innings_pitched == pytest.approx(220.67)
+        assert line.earned_runs == 0
+
+    def test_the_reconstructed_line_supports_the_metrics_a_total_needs(self) -> None:
+        from baseball_sim.domain.career import pitching_total
+
+        total = pitching_total([pitching_line_from_row(WIDE_PITCHING_ROW)])
+        assert total is not None
+        assert total.era is not None and total.era > 0
+        assert total.whip is not None and total.whip > 0.5
+        assert total.strikeout_rate is not None
