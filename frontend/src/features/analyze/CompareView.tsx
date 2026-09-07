@@ -1,5 +1,6 @@
 import { Link, useOutletContext, useSearchParams } from "react-router-dom";
 import type { MetricComparison } from "../../api/client";
+import type { components } from "../../api/schema";
 import type { ShellContext } from "../../components/AppShell";
 import { Card } from "../../components/Card";
 import { pairAccents } from "../../teams";
@@ -12,6 +13,10 @@ import {
   formatMetric,
   goodnessRatio,
 } from "./metrics";
+import { PlayerHeadshot } from "../../components/PlayerHeadshot";
+import { TeamLogo } from "../../components/TeamLogo";
+import { usePlayerSeason } from "../catalog/hooks";
+import { SeasonLineRow } from "./SeasonLineRow";
 import { useRoster, type RosterPlayer } from "../../useRoster";
 import { usePlayerCompare } from "./usePlayerCompare";
 
@@ -31,13 +36,19 @@ export function CompareView() {
   const leftPlayerId = positiveInt(params.get("left"));
   const rightPlayerId = positiveInt(params.get("right"));
   const seed = positiveInt(params.get("seed")) ?? DEFAULT_SEED;
+  const season = positiveInt(params.get("season"));
 
   // Two clubs shown together must stay visually distinct, same as a matchup.
   const accents = pairAccents(leftTeamId ?? 0, rightTeamId ?? 0, dark);
 
   const leftRoster = useRoster(leftTeamId);
   const rightRoster = useRoster(rightTeamId);
-  const { data, loading, error } = usePlayerCompare(leftPlayerId, rightPlayerId, seed);
+  const { data, loading, error } = usePlayerCompare(leftPlayerId, rightPlayerId, seed, season);
+  // The season endpoint carries the identity and the full stat line, so the header no
+  // longer depends on the player happening to be in the loaded club roster — a
+  // deep-linked player used to render as a bare id.
+  const leftSeason = usePlayerSeason(leftPlayerId, season);
+  const rightSeason = usePlayerSeason(rightPlayerId, season);
 
   function updateSide(side: Side, patch: { team?: number; player?: number | null }) {
     setParams(
@@ -58,8 +69,15 @@ export function CompareView() {
     );
   }
 
-  const leftName = playerName(leftRoster.players, leftPlayerId);
-  const rightName = playerName(rightRoster.players, rightPlayerId);
+  const leftName =
+    leftSeason.data?.player?.full_name ?? playerName(leftRoster.players, leftPlayerId);
+  const rightName =
+    rightSeason.data?.player?.full_name ?? playerName(rightRoster.players, rightPlayerId);
+  // Whichever side has a career offers the years; a deep link can name any of them.
+  const seasonOptions =
+    leftSeason.data?.available_seasons?.length
+      ? leftSeason.data.available_seasons
+      : (rightSeason.data?.available_seasons ?? []);
 
   return (
     <div className="flex flex-col gap-3">
@@ -86,6 +104,37 @@ export function CompareView() {
         />
       </div>
 
+      {seasonOptions.length > 1 && (
+        <div className="flex items-center gap-2 px-1">
+          <label className="flex items-center gap-1.5 text-xs text-faint">
+            season
+            <select
+              value={data?.season ?? season ?? ""}
+              onChange={(event) =>
+                setParams(
+                  (previous) => {
+                    const next = new URLSearchParams(previous);
+                    next.set("season", event.target.value);
+                    return next;
+                  },
+                  { replace: true },
+                )
+              }
+              className="rounded-md border border-line bg-surface px-1.5 py-1 text-xs text-ink outline-none"
+            >
+              {seasonOptions.map((year) => (
+                <option key={year} value={year}>
+                  {year}
+                </option>
+              ))}
+            </select>
+          </label>
+          <span className="text-[11px] text-faint">
+            compares both players as they were that year
+          </span>
+        </div>
+      )}
+
       {error && (
         <Card className="px-4 py-5">
           <p className="text-[13px] text-ink">{error}</p>
@@ -107,6 +156,11 @@ export function CompareView() {
           rightName={rightName}
           leftAccent={accents.first}
           rightAccent={accents.second}
+          leftTeamId={leftTeamId}
+          rightTeamId={rightTeamId}
+          leftLines={leftSeason.data?.lines ?? []}
+          rightLines={rightSeason.data?.lines ?? []}
+          dark={dark}
           loading={loading}
         />
       )}
@@ -182,16 +236,24 @@ function PlayerPicker({
   );
 }
 
+type Line = components["schemas"]["PlayerSeasonLine"];
+
 type ComparisonTableProps = {
   data: {
     metrics: { [key: string]: MetricComparison };
     left_player_id: number;
     right_player_id: number;
+    season?: number | null;
   };
   leftName: string;
   rightName: string;
   leftAccent: string;
   rightAccent: string;
+  leftTeamId: number | null;
+  rightTeamId: number | null;
+  leftLines: Line[];
+  rightLines: Line[];
+  dark: boolean;
   loading: boolean;
 };
 
@@ -201,6 +263,11 @@ function ComparisonTable({
   rightName,
   leftAccent,
   rightAccent,
+  leftTeamId,
+  rightTeamId,
+  leftLines,
+  rightLines,
+  dark,
   loading,
 }: ComparisonTableProps) {
   const rows = COMPARE_METRIC_ORDER.map((metric) => ({
@@ -222,23 +289,37 @@ function ComparisonTable({
   return (
     <Card padded={false} className={loading ? "opacity-60" : ""}>
       <div className="grid grid-cols-[minmax(0,1fr)_78px_minmax(0,1fr)] items-center gap-2 border-b border-line px-3.5 py-2.5">
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2">
           <span className="h-3.5 w-1 shrink-0 rounded-sm" style={{ background: leftAccent }} />
+          <PlayerHeadshot
+            playerId={data.left_player_id}
+            name={leftName}
+            size={30}
+            accent={leftAccent}
+          />
           <Link
             to={`/explore/players/${data.left_player_id}`}
             className="truncate text-sm font-medium text-ink underline-offset-2 hover:underline"
           >
             {leftName}
           </Link>
+          {leftTeamId !== null && <TeamLogo teamId={leftTeamId} dark={dark} size={16} />}
         </div>
         <span className="text-center text-[11px] text-faint">vs</span>
-        <div className="flex items-center justify-end gap-2">
+        <div className="flex min-w-0 items-center justify-end gap-2">
+          {rightTeamId !== null && <TeamLogo teamId={rightTeamId} dark={dark} size={16} />}
           <Link
             to={`/explore/players/${data.right_player_id}`}
             className="truncate text-right text-sm font-medium text-ink underline-offset-2 hover:underline"
           >
             {rightName}
           </Link>
+          <PlayerHeadshot
+            playerId={data.right_player_id}
+            name={rightName}
+            size={30}
+            accent={rightAccent}
+          />
           <span className="h-3.5 w-1 shrink-0 rounded-sm" style={{ background: rightAccent }} />
         </div>
       </div>
@@ -255,6 +336,15 @@ function ComparisonTable({
           />
         ))}
       </div>
+
+      {(["hitting", "pitching"] as const).map((group) => (
+        <SeasonLineRow
+          key={group}
+          group={group}
+          left={leftLines.find((line) => line.stat_group === group) ?? null}
+          right={rightLines.find((line) => line.stat_group === group) ?? null}
+        />
+      ))}
 
       <div className="border-t border-line px-3.5 py-2.5 text-xs text-muted">
         {measured.length > 0 ? (

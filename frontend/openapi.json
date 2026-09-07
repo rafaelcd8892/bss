@@ -15,6 +15,17 @@
             "exclusiveMinimum": 0.0,
             "title": "Right Player Id",
             "type": "integer"
+          },
+          "season": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Season"
           }
         },
         "required": [
@@ -59,6 +70,17 @@
             "exclusiveMinimum": 0.0,
             "title": "Right Player Id",
             "type": "integer"
+          },
+          "season": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Season"
           },
           "summary": {
             "title": "Summary",

@@ -36,7 +36,8 @@ Open items, recommended order:
    fitted (ADR-029) but in sample, on the season it is measured against — it removes a
    known bias, it does not demonstrate skill. The attack/prevention weights are still
    unfitted: they are shape rather than scale, and nothing measures them yet.
-3. Player search endpoint, to replace the club -> roster cascade in Compare.
+3. Player search endpoint, to replace the club -> roster cascade in Compare. The
+   header no longer depends on the cascade, but picking a player still does.
 4. A season selector on Explore's club pages, so a club can be read in a past year the
    way a player already can.
 5. Game-level history, so calibration can be a real out-of-sample backtest.

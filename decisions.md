@@ -888,6 +888,9 @@ When adding a new decision, use this format:
 ---
 
 ## Change Log
+- 2026-09-07: Compare caught up with the rest — identities from the season endpoint,
+  headshots and club marks, a season selector over the ingested history, and the
+  descriptive stat line shown apart from the five scored metrics.
 - 2026-09-07: Added a season-by-season career table with server-computed totals, and
   collapsed the career chart behind it.
 - 2026-09-07: Served the widened metrics and added career trajectory charts — the

@@ -19,17 +19,26 @@ from baseball_sim.domain.lineup_provider import CatalogLineupProvider, LineupPro
 from baseball_sim.domain.stats_provider import StatsProvider
 
 
-@lru_cache(maxsize=4)
+@lru_cache(maxsize=8)
 def _postgres_provider(dsn: str, season: int) -> StatsProvider:
     from baseball_sim.domain.postgres_stats import build_stat_line_provider
 
     return build_stat_line_provider(dsn=dsn, season=season)
 
 
-def get_stats_provider(settings: Settings | None = None) -> StatsProvider | None:
+def get_stats_provider(
+    settings: Settings | None = None, *, season: int | None = None
+) -> StatsProvider | None:
+    """The provider for a season — the configured one unless another is named.
+
+    Each season is cached separately, so comparing players across a few years does not
+    rebuild the current season's provider on every request.
+    """
+
     app_settings = settings if settings is not None else get_settings()
     if app_settings.stats_source == "postgres":
-        return _postgres_provider(app_settings.db_dsn, app_settings.stats_season)
+        resolved = season if season is not None else app_settings.stats_season
+        return _postgres_provider(app_settings.db_dsn, resolved)
     return None
 
 

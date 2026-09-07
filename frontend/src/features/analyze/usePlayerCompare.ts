@@ -11,6 +11,7 @@ export function usePlayerCompare(
   left: number | null,
   right: number | null,
   seed: number,
+  season?: number | null,
 ): CompareState {
   const [state, setState] = useState<CompareState>({
     data: null,
@@ -36,6 +37,8 @@ export function usePlayerCompare(
             model_version: "baseline-v1",
             data_snapshot_id: "ui",
           },
+          // Omitted rather than null, so the server uses its configured season.
+          ...(season ? { season } : {}),
         },
       })
       .then(({ data, error }) => {
@@ -55,7 +58,7 @@ export function usePlayerCompare(
     return () => {
       cancelled = true;
     };
-  }, [left, right, seed]);
+  }, [left, right, seed, season]);
 
   return state;
 }

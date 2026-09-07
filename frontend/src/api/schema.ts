@@ -283,6 +283,8 @@ export interface components {
             left_player_id: number;
             /** Right Player Id */
             right_player_id: number;
+            /** Season */
+            season?: number | null;
         };
         /** ComparePlayersResponse */
         ComparePlayersResponse: {
@@ -299,6 +301,8 @@ export interface components {
             };
             /** Right Player Id */
             right_player_id: number;
+            /** Season */
+            season?: number | null;
             /** Summary */
             summary: string;
         };

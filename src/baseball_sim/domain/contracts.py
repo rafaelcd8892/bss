@@ -217,6 +217,9 @@ class ComparePlayersRequest(BaseModel):
     left_player_id: PositiveInt
     right_player_id: PositiveInt
     context: DeterministicContext
+    #: Which season's stats to compare. Omitted means the configured one; naming an
+    #: older season compares the players as they were, now that careers are ingested.
+    season: int | None = None
 
 
 class MetricComparison(BaseModel):
@@ -234,6 +237,9 @@ class ComparePlayersResult(BaseModel):
     right_player_id: PositiveInt
     metrics: dict[str, MetricComparison]
     summary: str
+    #: The season actually compared, resolved from the request or the configuration,
+    #: so a client never has to assume which one it got.
+    season: int | None = None
 
 
 class ComparePlayersResponse(BaseModel):

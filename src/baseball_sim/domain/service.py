@@ -40,6 +40,7 @@ def compare_players(
     request: ComparePlayersRequest,
     *,
     provider: StatsProvider | None = None,
+    season: int | None = None,
 ) -> ComparePlayersResult:
     active_provider = provider if provider is not None else DEFAULT_STATS_PROVIDER
     left = request.left_player_id
@@ -86,6 +87,7 @@ def compare_players(
         right_player_id=right,
         metrics=comparisons,
         summary=summary,
+        season=season if season is not None else request.season,
     )
 
 

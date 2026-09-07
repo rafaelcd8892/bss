@@ -330,7 +330,10 @@ def compare_players_endpoint(
     request: ComparePlayersRequest,
     settings: SettingsDependency,
 ) -> ComparePlayersResponse:
-    result = compare_players(request, provider=get_stats_provider(settings))
+    season = request.season if request.season is not None else settings.stats_season
+    result = compare_players(
+        request, provider=get_stats_provider(settings, season=season), season=season
+    )
     return ComparePlayersResponse(meta=ResponseMeta(context=request.context), result=result)
 
 

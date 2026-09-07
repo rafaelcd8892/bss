@@ -54,13 +54,26 @@ const COMPARISON = {
 beforeEach(() => {
   getMock.mockReset();
   postMock.mockReset();
-  getMock.mockImplementation((path: string) =>
-    Promise.resolve(
-      path.includes("roster")
-        ? { data: ROSTER, error: undefined }
-        : { data: { teams: [] }, error: undefined },
-    ),
-  );
+  getMock.mockImplementation((path: string, options?: { params?: { path?: Record<string, number> } }) => {
+    if (path.includes("roster")) return Promise.resolve({ data: ROSTER, error: undefined });
+    if (path.includes("/season")) {
+      const id = options?.params?.path?.player_id;
+      return Promise.resolve({
+        data: {
+          player: {
+            player_id: id,
+            full_name: id === LEFT ? "Juan Soto" : "Yordan Alvarez",
+            primary_position: "LF",
+          },
+          season: 2026,
+          available_seasons: [2026, 2025],
+          lines: [{ stat_group: "hitting", obp: 0.399, slg: 0.526, ops: 0.925 }],
+        },
+        error: undefined,
+      });
+    }
+    return Promise.resolve({ data: { teams: [] }, error: undefined });
+  });
   postMock.mockResolvedValue({ data: { result: COMPARISON }, error: undefined });
 });
 
@@ -110,4 +123,48 @@ describe("CompareView", () => {
       right_player_id: RIGHT,
     });
   });
+});
+
+  it("names a deep-linked player the loaded roster does not contain", async () => {
+    // The real failure: a shared link carries a player who has since changed clubs, or
+    // whose club is not the one in the URL. He used to render as a bare id.
+    getMock.mockImplementation(
+      (path: string, options?: { params?: { path?: Record<string, number> } }) => {
+        if (path.includes("roster")) return Promise.resolve({ data: { players: [] }, error: undefined });
+        if (path.includes("/season")) {
+          const id = options?.params?.path?.player_id;
+          return Promise.resolve({
+            data: {
+              player: { player_id: id, full_name: id === LEFT ? "Juan Soto" : "Yordan Alvarez" },
+              season: 2026,
+              available_seasons: [2026],
+              lines: [],
+            },
+            error: undefined,
+          });
+        }
+        return Promise.resolve({ data: { teams: [] }, error: undefined });
+      },
+    );
+
+    renderRouted(<CompareView />, { route: ROUTE });
+    await waitFor(() => expect(screen.getByText("Juan Soto")).toBeInTheDocument());
+    expect(screen.queryByText(`#${LEFT}`)).not.toBeInTheDocument();
+  });
+
+  it("shows the descriptive stat line apart from the scored metrics", async () => {
+    renderRouted(<CompareView />, { route: ROUTE });
+    await waitFor(() => expect(screen.getByText(/not scored/i)).toBeInTheDocument());
+    expect(screen.getByText("OPS")).toBeInTheDocument();
+    // It carries no verdict: nobody wins a stat line.
+    const verdict = screen.getByText(/measured metric/i).textContent ?? "";
+    expect(verdict).not.toContain("OPS");
+  });
+
+  it("offers the seasons a career has, and says which one it compared", async () => {
+    renderRouted(<CompareView />, { route: ROUTE });
+    await waitFor(() => expect(screen.getByLabelText(/season/i)).toBeInTheDocument());
+    const picker = screen.getByLabelText(/season/i) as HTMLSelectElement;
+    expect([...picker.options].map((option) => option.value)).toEqual(["2026", "2025"]);
+  
 });
