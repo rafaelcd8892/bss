@@ -54,6 +54,22 @@ class PlayerSummary(BaseModel):
     throws: str | None = None
 
 
+class PlayerSearchResult(BaseModel):
+    """A player, with just enough context to tell two of the same name apart."""
+
+    player_id: PositiveInt
+    full_name: str
+    primary_position: str | None = None
+    #: The club of his most recent ingested season, absent if he has no stats yet.
+    team_id: int | None = None
+    latest_season: int | None = None
+
+
+class PlayerSearchResponse(BaseModel):
+    query: str
+    players: list[PlayerSearchResult]
+
+
 class TeamRosterResponse(BaseModel):
     team_id: PositiveInt
     players: list[PlayerSummary]

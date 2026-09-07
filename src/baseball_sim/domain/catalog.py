@@ -14,6 +14,7 @@ from typing import Any, Protocol
 from baseball_sim.domain.contracts import (
     LeaderMetric,
     PitcherWorkload,
+    PlayerSearchResult,
     PlayerSeasonLine,
     PlayerSummary,
     StatLeader,
@@ -212,6 +213,8 @@ class CatalogRepository(Protocol):
 
     def get_player(self, *, player_id: int) -> PlayerSummary | None: ...
 
+    def search_players(self, *, query: str, limit: int) -> list[PlayerSearchResult]: ...
+
     def get_team_roster(self, *, team_id: int) -> list[PlayerSummary]: ...
 
     def get_batting_woba(
@@ -294,6 +297,50 @@ class PostgresCatalogRepository:
             bats=row[3],
             throws=row[4],
         )
+
+    def search_players(self, *, query: str, limit: int) -> list[PlayerSearchResult]:
+        """Players whose name contains the query, accents and case ignored.
+
+        Ranked so the obvious answer comes first: names that *start* with the query
+        before ones that merely contain it, then the player with a more recent season,
+        because a search box is usually reaching for someone who still plays.
+        """
+
+        folded = query.strip()
+        if not folded:
+            return []
+
+        sql = """
+            SELECT p.player_id, p.full_name, p.primary_position,
+                   latest.team_id, latest.season
+            FROM players p
+            LEFT JOIN LATERAL (
+                SELECT s.team_id, s.season
+                FROM player_season_stats s
+                WHERE s.player_id = p.player_id
+                ORDER BY s.season DESC, s.team_id IS NULL, s.loaded_at_utc DESC
+                LIMIT 1
+            ) latest ON TRUE
+            WHERE fold_name(p.full_name) LIKE fold_name(%s)
+            ORDER BY fold_name(p.full_name) LIKE fold_name(%s) DESC,
+                     latest.season DESC NULLS LAST,
+                     p.full_name
+            LIMIT %s
+        """
+        with self._conn.cursor() as cursor:
+            cursor.execute(sql, (f"%{folded}%", f"{folded}%", limit))
+            rows = cursor.fetchall()
+
+        return [
+            PlayerSearchResult(
+                player_id=int(row[0]),
+                full_name=str(row[1]),
+                primary_position=row[2],
+                team_id=_optional_int(row[3]),
+                latest_season=_optional_int(row[4]),
+            )
+            for row in rows
+        ]
 
     def get_team_roster(self, *, team_id: int) -> list[PlayerSummary]:
         with self._conn.cursor() as cursor:

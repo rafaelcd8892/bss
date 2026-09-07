@@ -4,7 +4,11 @@ import pytest
 from fastapi.testclient import TestClient
 
 from baseball_sim.api.routes import get_catalog_repository
-from baseball_sim.domain.contracts import PlayerSeasonLine, PlayerSummary
+from baseball_sim.domain.contracts import (
+    PlayerSearchResult,
+    PlayerSeasonLine,
+    PlayerSummary,
+)
 from baseball_sim.main import app
 
 SOTO = PlayerSummary(
@@ -20,6 +24,7 @@ class FakePlayerCatalog:
         self.seasons: list[int] = [2026]
         self.career: list[tuple[int, PlayerSeasonLine]] = []
         self.raw: tuple[list, list] = ([], [])
+        self.search_results: list[PlayerSearchResult] = []
 
     def get_player_career(
         self, *, player_id: int
@@ -30,6 +35,10 @@ class FakePlayerCatalog:
     def get_player_career_raw(self, *, player_id: int) -> tuple[list, list]:
         del player_id
         return self.raw
+
+    def search_players(self, *, query: str, limit: int) -> list[PlayerSearchResult]:
+        del query, limit
+        return self.search_results
 
     def get_player_seasons(self, *, player_id: int) -> list[int]:
         del player_id
@@ -194,3 +203,46 @@ def test_the_season_line_carries_the_widened_metrics() -> None:
     assert line["ops"] == 0.925
     assert line["xwoba"] == 0.410
     assert line["x_slg"] == 0.578
+
+
+class TestPlayerSearch:
+    """Finding a player by name, rather than knowing his club first."""
+
+    def catalog_with(self, results: list[PlayerSearchResult]) -> FakePlayerCatalog:
+        catalog = FakePlayerCatalog(player=SOTO, lines=[])
+        catalog.search_results = results
+        return catalog
+
+    def test_it_returns_matches_with_enough_context_to_tell_them_apart(self) -> None:
+        catalog = self.catalog_with([
+            PlayerSearchResult(
+                player_id=665742, full_name="Juan Soto",
+                primary_position="LF", team_id=121, latest_season=2026,
+            )
+        ])
+        payload = _client(catalog).get("/api/v1/players/search?q=soto").json()
+        assert payload["query"] == "soto"
+        assert payload["players"][0]["team_id"] == 121
+        assert payload["players"][0]["latest_season"] == 2026
+
+    def test_the_route_is_not_swallowed_by_the_player_id_route(self) -> None:
+        """`/players/search` and `/players/{id}` collide unless order is deliberate.
+
+        Declared the other way round, "search" is parsed as an id and the endpoint
+        returns a validation error instead of results.
+        """
+
+        response = _client(self.catalog_with([])).get("/api/v1/players/search?q=x")
+        assert response.status_code == 200
+
+    def test_an_empty_query_is_rejected_rather_than_listing_everyone(self) -> None:
+        assert _client(self.catalog_with([])).get("/api/v1/players/search?q=").status_code == 422
+
+    def test_the_limit_is_bounded(self) -> None:
+        client = _client(self.catalog_with([]))
+        assert client.get("/api/v1/players/search?q=a&limit=0").status_code == 422
+        assert client.get("/api/v1/players/search?q=a&limit=500").status_code == 422
+
+    def test_no_match_is_an_empty_list_not_an_error(self) -> None:
+        payload = _client(self.catalog_with([])).get("/api/v1/players/search?q=zzz").json()
+        assert payload["players"] == []

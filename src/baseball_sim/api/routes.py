@@ -16,6 +16,7 @@ from baseball_sim.domain.contracts import (
     ComparePlayersResponse,
     LeaderMetric,
     PlayerCareerResponse,
+    PlayerSearchResponse,
     PlayerSeasonLine,
     PlayerSeasonResponse,
     PlayerSummary,
@@ -255,6 +256,23 @@ def stat_leaders_endpoint(
         direction="higher_is_better" if meta.descending else "lower_is_better",
         qualifier=leader_qualifier_label(metric, resolved_minimum),
         leaders=leaders,
+    )
+
+
+@router.get("/players/search", response_model=PlayerSearchResponse)
+def search_players_endpoint(
+    catalog: CatalogDependency,
+    q: Annotated[str, Query(min_length=1, max_length=60)],
+    limit: Annotated[int, Query(ge=1, le=50)] = 10,
+) -> PlayerSearchResponse:
+    """Find a player by name, so picking one does not mean knowing his club first.
+
+    Declared before ``/players/{player_id}``: FastAPI matches routes in order, and the
+    parameterised one would otherwise swallow "search" and fail to parse it as an id.
+    """
+
+    return PlayerSearchResponse(
+        query=q, players=catalog.search_players(query=q, limit=limit)
     )
 
 

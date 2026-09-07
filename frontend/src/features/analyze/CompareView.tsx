@@ -4,7 +4,6 @@ import type { components } from "../../api/schema";
 import type { ShellContext } from "../../components/AppShell";
 import { Card } from "../../components/Card";
 import { pairAccents } from "../../teams";
-import { useTeamCatalog } from "../../useTeamCatalog";
 import {
   COMPARE_METRIC_ORDER,
   METRIC_HINTS,
@@ -16,33 +15,25 @@ import {
 import { PlayerHeadshot } from "../../components/PlayerHeadshot";
 import { TeamLogo } from "../../components/TeamLogo";
 import { usePlayerSeason } from "../catalog/hooks";
+import { PlayerSearch } from "./PlayerSearch";
 import { SeasonLineRow } from "./SeasonLineRow";
-import { useRoster, type RosterPlayer } from "../../useRoster";
 import { usePlayerCompare } from "./usePlayerCompare";
 
 const DEFAULT_SEED = 1234;
-const SELECT =
-  "w-full min-w-0 rounded-md border border-line bg-surface px-2 py-1.5 text-sm text-ink outline-none";
-
 type Side = "left" | "right";
+type SearchResult = components["schemas"]["PlayerSearchResult"];
 
 export function CompareView() {
   const { dark } = useOutletContext<ShellContext>();
   const [params, setParams] = useSearchParams();
-  const teams = useTeamCatalog();
 
-  const leftTeamId = positiveInt(params.get("leftTeam")) ?? teams[0]?.id ?? null;
-  const rightTeamId = positiveInt(params.get("rightTeam")) ?? teams[1]?.id ?? null;
   const leftPlayerId = positiveInt(params.get("left"));
   const rightPlayerId = positiveInt(params.get("right"));
   const seed = positiveInt(params.get("seed")) ?? DEFAULT_SEED;
   const season = positiveInt(params.get("season"));
 
-  // Two clubs shown together must stay visually distinct, same as a matchup.
-  const accents = pairAccents(leftTeamId ?? 0, rightTeamId ?? 0, dark);
-
-  const leftRoster = useRoster(leftTeamId);
-  const rightRoster = useRoster(rightTeamId);
+  const leftSeasonTeam = positiveInt(params.get("leftTeam"));
+  const rightSeasonTeam = positiveInt(params.get("rightTeam"));
   const { data, loading, error } = usePlayerCompare(leftPlayerId, rightPlayerId, seed, season);
   // The season endpoint carries the identity and the full stat line, so the header no
   // longer depends on the player happening to be in the loaded club roster — a
@@ -50,18 +41,20 @@ export function CompareView() {
   const leftSeason = usePlayerSeason(leftPlayerId, season);
   const rightSeason = usePlayerSeason(rightPlayerId, season);
 
-  function updateSide(side: Side, patch: { team?: number; player?: number | null }) {
+  /** The club travels in the URL beside the player, so a shared link keeps its colors
+   *  before the season request has come back. */
+  function selectPlayer(side: Side, result: SearchResult | null) {
+    const teamKey = side === "left" ? "leftTeam" : "rightTeam";
     setParams(
       (previous) => {
         const next = new URLSearchParams(previous);
-        if (patch.team !== undefined) {
-          next.set(side === "left" ? "leftTeam" : "rightTeam", String(patch.team));
-          // The previous pick belongs to the old roster, so it cannot carry over.
+        if (result === null) {
           next.delete(side);
-        }
-        if (patch.player !== undefined) {
-          if (patch.player === null) next.delete(side);
-          else next.set(side, String(patch.player));
+          next.delete(teamKey);
+        } else {
+          next.set(side, String(result.player_id));
+          if (result.team_id) next.set(teamKey, String(result.team_id));
+          else next.delete(teamKey);
         }
         return next;
       },
@@ -69,10 +62,14 @@ export function CompareView() {
     );
   }
 
-  const leftName =
-    leftSeason.data?.player?.full_name ?? playerName(leftRoster.players, leftPlayerId);
-  const rightName =
-    rightSeason.data?.player?.full_name ?? playerName(rightRoster.players, rightPlayerId);
+  const leftName = leftSeason.data?.player?.full_name ?? `#${leftPlayerId ?? ""}`;
+  const rightName = rightSeason.data?.player?.full_name ?? `#${rightPlayerId ?? ""}`;
+  // The club follows the player once his season is known; the URL carries it in the
+  // meantime so a shared link is not colourless while the request is in flight.
+  const leftTeamId = leftSeason.data?.lines?.[0]?.team_id ?? leftSeasonTeam;
+  const rightTeamId = rightSeason.data?.lines?.[0]?.team_id ?? rightSeasonTeam;
+  // Two clubs shown together must stay visually distinct, same as a matchup.
+  const accents = pairAccents(leftTeamId ?? 0, rightTeamId ?? 0, dark);
   // Whichever side has a career offers the years; a deep link can name any of them.
   const seasonOptions =
     leftSeason.data?.available_seasons?.length
@@ -82,25 +79,27 @@ export function CompareView() {
   return (
     <div className="flex flex-col gap-3">
       <div className="grid grid-cols-2 gap-2.5 max-[560px]:grid-cols-1">
-        <PlayerPicker
+        <PlayerSearch
           label="left"
-          accent={leftTeamId !== null ? accents.first : undefined}
-          teams={teams}
-          teamId={leftTeamId}
-          playerId={leftPlayerId}
-          roster={leftRoster}
-          onTeam={(team) => updateSide("left", { team })}
-          onPlayer={(player) => updateSide("left", { player })}
+          dark={dark}
+          accent={leftPlayerId !== null ? accents.first : undefined}
+          selected={
+            leftPlayerId !== null
+              ? { playerId: leftPlayerId, name: leftName, teamId: leftTeamId }
+              : null
+          }
+          onSelect={(result) => selectPlayer("left", result)}
         />
-        <PlayerPicker
+        <PlayerSearch
           label="right"
-          accent={rightTeamId !== null ? accents.second : undefined}
-          teams={teams}
-          teamId={rightTeamId}
-          playerId={rightPlayerId}
-          roster={rightRoster}
-          onTeam={(team) => updateSide("right", { team })}
-          onPlayer={(player) => updateSide("right", { player })}
+          dark={dark}
+          accent={rightPlayerId !== null ? accents.second : undefined}
+          selected={
+            rightPlayerId !== null
+              ? { playerId: rightPlayerId, name: rightName, teamId: rightTeamId }
+              : null
+          }
+          onSelect={(result) => selectPlayer("right", result)}
         />
       </div>
 
@@ -144,7 +143,8 @@ export function CompareView() {
       {!error && (leftPlayerId === null || rightPlayerId === null) && (
         <Card className="px-4 py-6">
           <p className="text-[13px] text-muted">
-            Pick a player on each side to compare them across wOBA, xwOBA, wRC+, FIP and K/BB.
+            Search for a player on each side to compare them across wOBA, xwOBA, wRC+,
+            FIP and K/BB.
           </p>
         </Card>
       )}
@@ -164,74 +164,6 @@ export function CompareView() {
           loading={loading}
         />
       )}
-    </div>
-  );
-}
-
-type PickerProps = {
-  label: string;
-  accent?: string;
-  teams: ReturnType<typeof useTeamCatalog>;
-  teamId: number | null;
-  playerId: number | null;
-  roster: { players: RosterPlayer[]; loading: boolean };
-  onTeam: (teamId: number) => void;
-  onPlayer: (playerId: number | null) => void;
-};
-
-function PlayerPicker({
-  label,
-  accent,
-  teams,
-  teamId,
-  playerId,
-  roster,
-  onTeam,
-  onPlayer,
-}: PickerProps) {
-  const known = roster.players.some((player) => player.player_id === playerId);
-
-  return (
-    <div
-      className="flex flex-col gap-2 rounded-md border border-line bg-surface px-3 py-2.5"
-      style={accent ? { borderLeft: `4px solid ${accent}` } : undefined}
-    >
-      <span className="text-xs text-muted">{label}</span>
-      <select
-        aria-label={`${label} team`}
-        value={teamId ?? ""}
-        onChange={(event) => onTeam(Number(event.target.value))}
-        className={SELECT}
-      >
-        {teams.map((team) => (
-          <option key={team.id} value={team.id}>
-            {team.name}
-          </option>
-        ))}
-      </select>
-      <select
-        aria-label={`${label} player`}
-        value={known && playerId !== null ? playerId : ""}
-        onChange={(event) =>
-          onPlayer(event.target.value === "" ? null : Number(event.target.value))
-        }
-        className={SELECT}
-        disabled={roster.loading || roster.players.length === 0}
-      >
-        <option value="">
-          {roster.loading
-            ? "loading roster…"
-            : roster.players.length === 0
-              ? "no roster ingested"
-              : "select a player"}
-        </option>
-        {roster.players.map((player) => (
-          <option key={player.player_id} value={player.player_id}>
-            {player.full_name}
-            {player.primary_position ? ` · ${player.primary_position}` : ""}
-          </option>
-        ))}
-      </select>
     </div>
   );
 }
@@ -480,11 +412,6 @@ function SideValue({
       {number}
     </div>
   );
-}
-
-function playerName(players: RosterPlayer[], playerId: number | null): string {
-  if (playerId === null) return "—";
-  return players.find((player) => player.player_id === playerId)?.full_name ?? `#${playerId}`;
 }
 
 function positiveInt(raw: string | null): number | null {

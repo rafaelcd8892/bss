@@ -888,6 +888,8 @@ When adding a new decision, use this format:
 ---
 
 ## Change Log
+- 2026-09-07: Added a player search endpoint with accent-insensitive matching, and
+  replaced Compare's club-then-roster cascade with it.
 - 2026-09-07: Compare caught up with the rest — identities from the season endpoint,
   headshots and club marks, a season selector over the ingested history, and the
   descriptive stat line shown apart from the five scored metrics.

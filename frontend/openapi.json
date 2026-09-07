@@ -381,6 +381,80 @@
         "title": "PlayerCareerResponse",
         "type": "object"
       },
+      "PlayerSearchResponse": {
+        "properties": {
+          "players": {
+            "items": {
+              "$ref": "#/components/schemas/PlayerSearchResult"
+            },
+            "title": "Players",
+            "type": "array"
+          },
+          "query": {
+            "title": "Query",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query",
+          "players"
+        ],
+        "title": "PlayerSearchResponse",
+        "type": "object"
+      },
+      "PlayerSearchResult": {
+        "description": "A player, with just enough context to tell two of the same name apart.",
+        "properties": {
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "latest_season": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Season"
+          },
+          "player_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Player Id",
+            "type": "integer"
+          },
+          "primary_position": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Primary Position"
+          },
+          "team_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team Id"
+          }
+        },
+        "required": [
+          "player_id",
+          "full_name"
+        ],
+        "title": "PlayerSearchResult",
+        "type": "object"
+      },
       "PlayerSeasonLine": {
         "description": "One player's season line for a stat group, with the metrics computed from it.",
         "properties": {
@@ -1725,6 +1799,60 @@
           }
         },
         "summary": "Health"
+      }
+    },
+    "/api/v1/players/search": {
+      "get": {
+        "description": "Find a player by name, so picking one does not mean knowing his club first.\n\nDeclared before ``/players/{player_id}``: FastAPI matches routes in order, and the\nparameterised one would otherwise swallow \"search\" and fail to parse it as an id.",
+        "operationId": "search_players_endpoint_api_v1_players_search_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "maxLength": 60,
+              "minLength": 1,
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayerSearchResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Search Players Endpoint"
       }
     },
     "/api/v1/players/{player_id}": {

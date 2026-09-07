@@ -79,6 +79,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/players/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search Players Endpoint
+         * @description Find a player by name, so picking one does not mean knowing his club first.
+         *
+         *     Declared before ``/players/{player_id}``: FastAPI matches routes in order, and the
+         *     parameterised one would otherwise swallow "search" and fail to parse it as an id.
+         */
+        get: operations["search_players_endpoint_api_v1_players_search_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/players/{player_id}": {
         parameters: {
             query?: never;
@@ -412,6 +435,29 @@ export interface components {
              * @default []
              */
             totals: components["schemas"]["PlayerSeasonLine"][];
+        };
+        /** PlayerSearchResponse */
+        PlayerSearchResponse: {
+            /** Players */
+            players: components["schemas"]["PlayerSearchResult"][];
+            /** Query */
+            query: string;
+        };
+        /**
+         * PlayerSearchResult
+         * @description A player, with just enough context to tell two of the same name apart.
+         */
+        PlayerSearchResult: {
+            /** Full Name */
+            full_name: string;
+            /** Latest Season */
+            latest_season?: number | null;
+            /** Player Id */
+            player_id: number;
+            /** Primary Position */
+            primary_position?: string | null;
+            /** Team Id */
+            team_id?: number | null;
         };
         /**
          * PlayerSeasonLine
@@ -896,6 +942,38 @@ export interface operations {
                     "application/json": {
                         [key: string]: string;
                     };
+                };
+            };
+        };
+    };
+    search_players_endpoint_api_v1_players_search_get: {
+        parameters: {
+            query: {
+                q: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlayerSearchResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderRouted } from "../../test/render";
 import { CompareView } from "./CompareView";
@@ -110,7 +110,9 @@ describe("CompareView", () => {
   it("asks for both players before requesting a comparison", async () => {
     renderRouted(<CompareView />, { route: "/analyze/compare?leftTeam=121&left=665742" });
 
-    await waitFor(() => expect(screen.getByText(/Pick a player on each side/i)).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText(/Search for a player on each side/i)).toBeInTheDocument(),
+    );
     expect(postMock).not.toHaveBeenCalled();
   });
 
@@ -125,31 +127,51 @@ describe("CompareView", () => {
   });
 });
 
-  it("names a deep-linked player the loaded roster does not contain", async () => {
-    // The real failure: a shared link carries a player who has since changed clubs, or
-    // whose club is not the one in the URL. He used to render as a bare id.
-    getMock.mockImplementation(
-      (path: string, options?: { params?: { path?: Record<string, number> } }) => {
-        if (path.includes("roster")) return Promise.resolve({ data: { players: [] }, error: undefined });
-        if (path.includes("/season")) {
-          const id = options?.params?.path?.player_id;
-          return Promise.resolve({
-            data: {
-              player: { player_id: id, full_name: id === LEFT ? "Juan Soto" : "Yordan Alvarez" },
-              season: 2026,
-              available_seasons: [2026],
-              lines: [],
-            },
-            error: undefined,
-          });
-        }
-        return Promise.resolve({ data: { teams: [] }, error: undefined });
-      },
-    );
-
-    renderRouted(<CompareView />, { route: ROUTE });
-    await waitFor(() => expect(screen.getByText("Juan Soto")).toBeInTheDocument());
+  it("names a deep-linked player without needing his club's roster", async () => {
+    // A shared link carries an id and nothing else. Identity comes from the season
+    // endpoint, so it no longer matters which roster happens to be loaded.
+    renderRouted(<CompareView />, { route: `/analyze/compare?left=${LEFT}&right=${RIGHT}` });
+    await waitFor(() => expect(screen.getAllByText("Juan Soto").length).toBeGreaterThan(0));
     expect(screen.queryByText(`#${LEFT}`)).not.toBeInTheDocument();
+  });
+
+  it("searches by name instead of asking which club he plays for", async () => {
+    getMock.mockImplementation((path: string) => {
+      if (path.includes("/players/search")) {
+        return Promise.resolve({
+          data: {
+            query: "soto",
+            players: [
+              {
+                player_id: LEFT,
+                full_name: "Juan Soto",
+                primary_position: "LF",
+                team_id: 121,
+                latest_season: 2026,
+              },
+            ],
+          },
+          error: undefined,
+        });
+      }
+      return Promise.resolve({ data: { teams: [] }, error: undefined });
+    });
+
+    renderRouted(<CompareView />, { route: "/analyze/compare" });
+    const box = screen.getByLabelText(/left player/i);
+    fireEvent.change(box, { target: { value: "soto" } });
+
+    await waitFor(() => expect(screen.getByRole("option")).toBeInTheDocument());
+    expect(screen.getByRole("option")).toHaveTextContent("Juan Soto");
+  });
+
+  it("does not fetch on a single letter", async () => {
+    renderRouted(<CompareView />, { route: "/analyze/compare" });
+    fireEvent.change(screen.getByLabelText(/left player/i), { target: { value: "s" } });
+    await new Promise((resolve) => setTimeout(resolve, 320));
+    expect(
+      getMock.mock.calls.filter(([path]) => String(path).includes("search")),
+    ).toHaveLength(0);
   });
 
   it("shows the descriptive stat line apart from the scored metrics", async () => {
