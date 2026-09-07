@@ -145,7 +145,16 @@ class TestLeaders:
     def test_ingested_seasons_are_reported_newest_first(
         self, catalog: PostgresCatalogRepository
     ) -> None:
-        assert catalog.get_ingested_seasons() == [SEASON]
+        assert [entry.season for entry in catalog.get_ingested_seasons()] == [SEASON]
+
+    def test_a_season_without_a_league_backfill_is_marked_incomplete(
+        self, catalog: PostgresCatalogRepository
+    ) -> None:
+        """The fixture's stats came from players, not from a league-wide sweep, so the
+        season holds those players' year rather than the year."""
+
+        [entry] = catalog.get_ingested_seasons()
+        assert entry.complete is False
 
     def test_limit_is_honoured(self, catalog: PostgresCatalogRepository) -> None:
         assert len(catalog.get_stat_leaders(

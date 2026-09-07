@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from typing import Any, Protocol
 
 from baseball_sim.domain.contracts import (
+    IngestedSeason,
     LeaderMetric,
     PitcherWorkload,
     PlayerSearchResult,
@@ -267,7 +268,7 @@ class CatalogRepository(Protocol):
         team_id: int | None = None,
     ) -> list[StatLeader]: ...
 
-    def get_ingested_seasons(self) -> list[int]: ...
+    def get_ingested_seasons(self) -> list[IngestedSeason]: ...
 
     def get_player_stats_table(
         self,
@@ -507,12 +508,32 @@ class PostgresCatalogRepository:
             )
         return total, table
 
-    def get_ingested_seasons(self) -> list[int]:
-        """Seasons with any ingested stat line, newest first."""
+    def get_ingested_seasons(self) -> list[IngestedSeason]:
+        """Seasons with any ingested stat line, newest first.
+
+        A season is complete when a league-wide backfill covered it. Without one it
+        holds only the careers of players a club rosters today, which is a different
+        population wearing the same year — and the difference is invisible in the
+        numbers themselves.
+        """
 
         with self._conn.cursor() as cursor:
-            cursor.execute("SELECT DISTINCT season FROM player_season_stats ORDER BY season DESC")
-            return [int(row[0]) for row in cursor.fetchall()]
+            cursor.execute(
+                """
+                SELECT s.season,
+                       EXISTS (
+                           SELECT 1 FROM data_snapshots d
+                           WHERE d.notes = 'season=' || s.season
+                                            || ';entity=league_season_stats'
+                       ) AS complete
+                FROM (SELECT DISTINCT season FROM player_season_stats) s
+                ORDER BY s.season DESC
+                """
+            )
+            return [
+                IngestedSeason(season=int(row[0]), complete=bool(row[1]))
+                for row in cursor.fetchall()
+            ]
 
     def get_stat_leaders(
         self,

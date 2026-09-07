@@ -32,6 +32,11 @@ export function LeadersView() {
   const teams = useTeamCatalog();
   const seasons = useIngestedSeasons();
   const { data, loading, error } = useLeaders({ metric, limit, minimum, teamId, season });
+  // A season is only trustworthy as a leaderboard once a league-wide backfill covered
+  // it; before that it is today's players in that year.
+  const incompleteSeason = seasons.some(
+    (entry) => entry.season === data?.season && !entry.complete,
+  );
 
   // The qualifier is typed into a text field, so hold it locally and only push it
   // into the URL once typing settles — otherwise every keystroke is a request.
@@ -124,9 +129,10 @@ export function LeadersView() {
               onChange={(event) => update("season", event.target.value || null)}
               className="rounded-md border border-line bg-surface px-2 py-1.5 text-sm text-ink outline-none"
             >
-              {seasons.map((year) => (
-                <option key={year} value={year}>
-                  {year}
+              {seasons.map((entry) => (
+                <option key={entry.season} value={entry.season}>
+                  {entry.season}
+                  {entry.complete ? "" : " ·"}
                 </option>
               ))}
             </select>
@@ -171,12 +177,12 @@ export function LeadersView() {
                 : "loading…"}
             </span>
           </div>
-          {data && seasons.length > 1 && data.season !== seasons[0] && (
+          {data && incompleteSeason && (
             <p className="border-b border-line px-3.5 py-2 text-[11px] leading-relaxed text-faint">
-              A past season is ranked only among players whose careers were backfilled —
-              those on a current roster. Anyone who has since retired is missing, so read
-              this as the best {data.season} among today's players, not as that year's
-              leaderboard.
+              {data.season} has not been backfilled league-wide, so it holds only players
+              on a current roster — anyone released, traded out of the league or retired
+              is missing. Read it as the best {data.season} among today's players, not as
+              that year's leaderboard. Seasons still missing one are marked · in the list.
             </p>
           )}
           <LeaderTable

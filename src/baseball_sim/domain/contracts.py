@@ -220,6 +220,18 @@ class StatLeader(BaseModel):
     innings_pitched: float | None = None
 
 
+class IngestedSeason(BaseModel):
+    """A season with stats, and whether it holds the whole league.
+
+    ``complete`` is false for a season that only came in through current players'
+    careers: it holds today's players in that year, not that year. A client showing a
+    past season has to be able to say which it is looking at.
+    """
+
+    season: int
+    complete: bool
+
+
 PlayerTableSort = Literal[
     "name",
     "team",

@@ -47,7 +47,14 @@ beforeEach(() => {
   getMock.mockReset();
   getMock.mockImplementation((path: string, options?: { params?: { query?: Record<string, number> } }) => {
     if (path.includes("stats/seasons")) {
-      return Promise.resolve({ data: [2026, 2025, 2019], error: undefined });
+      return Promise.resolve({
+        data: [
+          { season: 2026, complete: true },
+          { season: 2025, complete: false },
+          { season: 2019, complete: true },
+        ],
+        error: undefined,
+      });
     }
     if (path.includes("stats/leaders")) {
       const query = options?.params?.query ?? {};
@@ -99,17 +106,24 @@ describe("LeadersView filters", () => {
     await waitFor(() => expect(leaderQueries().at(-1)).toMatchObject({ season: 2019 }));
   });
 
-  it("warns that a past season only ranks players still on a roster", async () => {
-    // The backfill follows current players' careers, so a 2019 board is missing
-    // everyone who has since retired. Presenting it as that year's leaderboard would
-    // be wrong in a way nobody could see from the numbers.
-    renderRouted(<LeadersView />, { route: "/analyze/leaders?season=2019" });
+  it("warns on a season the league-wide backfill has not covered", async () => {
+    // Such a season holds only current players' careers, so it is missing everyone
+    // since retired. Presenting it as that year's leaderboard would be wrong in a way
+    // nobody could see from the numbers.
+    renderRouted(<LeadersView />, { route: "/analyze/leaders?season=2025" });
     await waitFor(() =>
       expect(screen.getByText(/not as that year's leaderboard/i)).toBeInTheDocument(),
     );
   });
 
-  it("does not warn on the current season, where nothing is missing", async () => {
+  it("does not warn on a season that was backfilled league-wide", async () => {
+    // 2019 was, so it really is that year's leaderboard.
+    renderRouted(<LeadersView />, { route: "/analyze/leaders?season=2019" });
+    await waitFor(() => expect(screen.getByText(/Juan Soto/)).toBeInTheDocument());
+    expect(screen.queryByText(/not as that year's leaderboard/i)).not.toBeInTheDocument();
+  });
+
+  it("does not warn on the current season either", async () => {
     renderRouted(<LeadersView />, { route: "/analyze/leaders" });
     await waitFor(() => expect(screen.getByText(/Juan Soto/)).toBeInTheDocument());
     expect(screen.queryByText(/not as that year's leaderboard/i)).not.toBeInTheDocument();

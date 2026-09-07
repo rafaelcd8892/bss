@@ -36,8 +36,10 @@ Open items, recommended order:
    fitted (ADR-029) but in sample, on the season it is measured against — it removes a
    known bias, it does not demonstrate skill. The attack/prevention weights are still
    unfitted: they are shape rather than scale, and nothing measures them yet.
-3. Backfill players who are no longer on a roster, so a past season's leaderboard is
-   that year's rather than the best of today's players in it.
+3. Decide whether to backfill the **current** season league-wide (ADR-031). It would
+   complete today's leaderboards, but it also changes which players feed each club's
+   simulator profile — a player released in July would start counting toward the club
+   he batted for. Worth doing deliberately, and measuring the effect on team profiles.
 4. A season selector on Explore's club pages, so a club can be read in a past year the
    way a player already can.
 5. Game-level history, so calibration can be a real out-of-sample backtest.

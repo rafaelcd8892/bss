@@ -187,9 +187,10 @@ export function PlayersView() {
               onChange={(event) => update({ season: event.target.value || null })}
               className="rounded-md border border-line bg-surface px-2 py-1.5 text-sm text-ink outline-none"
             >
-              {seasons.map((year) => (
-                <option key={year} value={year}>
-                  {year}
+              {seasons.map((entry) => (
+                <option key={entry.season} value={entry.season}>
+                  {entry.season}
+                  {entry.complete ? "" : " ·"}
                 </option>
               ))}
             </select>

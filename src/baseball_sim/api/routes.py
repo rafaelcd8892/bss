@@ -14,6 +14,7 @@ from baseball_sim.domain.catalog import (
 from baseball_sim.domain.contracts import (
     ComparePlayersRequest,
     ComparePlayersResponse,
+    IngestedSeason,
     LeaderMetric,
     PlayerCareerResponse,
     PlayerSearchResponse,
@@ -233,9 +234,9 @@ def team_profiles_endpoint(
     return TeamProfileListResponse(season=resolved_season, teams=teams)
 
 
-@router.get("/stats/seasons", response_model=list[int])
-def ingested_seasons_endpoint(catalog: CatalogDependency) -> list[int]:
-    """Seasons with ingested stats, newest first, so a client can offer them."""
+@router.get("/stats/seasons", response_model=list[IngestedSeason])
+def ingested_seasons_endpoint(catalog: CatalogDependency) -> list[IngestedSeason]:
+    """Seasons with ingested stats, newest first, each saying whether it is complete."""
 
     return catalog.get_ingested_seasons()
 

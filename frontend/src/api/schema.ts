@@ -259,7 +259,7 @@ export interface paths {
         };
         /**
          * Ingested Seasons Endpoint
-         * @description Seasons with ingested stats, newest first, so a client can offer them.
+         * @description Seasons with ingested stats, newest first, each saying whether it is complete.
          */
         get: operations["ingested_seasons_endpoint_api_v1_stats_seasons_get"];
         put?: never;
@@ -388,6 +388,20 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /**
+         * IngestedSeason
+         * @description A season with stats, and whether it holds the whole league.
+         *
+         *     ``complete`` is false for a season that only came in through current players'
+         *     careers: it holds today's players in that year, not that year. A client showing a
+         *     past season has to be able to say which it is looking at.
+         */
+        IngestedSeason: {
+            /** Complete */
+            complete: boolean;
+            /** Season */
+            season: number;
         };
         /** MetricComparison */
         MetricComparison: {
@@ -1348,7 +1362,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": number[];
+                    "application/json": components["schemas"]["IngestedSeason"][];
                 };
             };
         };

@@ -141,6 +141,25 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "IngestedSeason": {
+        "description": "A season with stats, and whether it holds the whole league.\n\n``complete`` is false for a season that only came in through current players'\ncareers: it holds today's players in that year, not that year. A client showing a\npast season has to be able to say which it is looking at.",
+        "properties": {
+          "complete": {
+            "title": "Complete",
+            "type": "boolean"
+          },
+          "season": {
+            "title": "Season",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "season",
+          "complete"
+        ],
+        "title": "IngestedSeason",
+        "type": "object"
+      },
       "MetricComparison": {
         "properties": {
           "better_player_id": {
@@ -2555,7 +2574,7 @@
     },
     "/api/v1/stats/seasons": {
       "get": {
-        "description": "Seasons with ingested stats, newest first, so a client can offer them.",
+        "description": "Seasons with ingested stats, newest first, each saying whether it is complete.",
         "operationId": "ingested_seasons_endpoint_api_v1_stats_seasons_get",
         "responses": {
           "200": {
@@ -2563,7 +2582,7 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "type": "integer"
+                    "$ref": "#/components/schemas/IngestedSeason"
                   },
                   "title": "Response Ingested Seasons Endpoint Api V1 Stats Seasons Get",
                   "type": "array"

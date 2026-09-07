@@ -5,7 +5,13 @@ from fastapi.testclient import TestClient
 
 from baseball_sim.api.routes import get_catalog_repository
 from baseball_sim.domain.catalog import LEADER_METRICS, leader_qualifier_label
-from baseball_sim.domain.contracts import LeaderMetric, PlayerSummary, StatLeader, TeamSummary
+from baseball_sim.domain.contracts import (
+    IngestedSeason,
+    LeaderMetric,
+    PlayerSummary,
+    StatLeader,
+    TeamSummary,
+)
 from baseball_sim.main import app
 from baseball_sim.sim.sabermetrics import (
     RawBattingLine,
@@ -25,8 +31,11 @@ class FakeLeaderCatalog:
         del season
         return {}
 
-    def get_ingested_seasons(self) -> list[int]:
-        return [2026, 2025]
+    def get_ingested_seasons(self) -> list[IngestedSeason]:
+        return [
+            IngestedSeason(season=2026, complete=False),
+            IngestedSeason(season=2019, complete=True),
+        ]
 
     def get_player(self, *, player_id: int) -> PlayerSummary | None:
         del player_id
@@ -354,4 +363,8 @@ class TestLeaderFilters:
         self, catalog: FakeLeaderCatalog
     ) -> None:
         del catalog
-        assert TestClient(app).get("/api/v1/stats/seasons").json() == [2026, 2025]
+        payload = TestClient(app).get("/api/v1/stats/seasons").json()
+        assert payload == [
+            {"season": 2026, "complete": False},
+            {"season": 2019, "complete": True},
+        ]

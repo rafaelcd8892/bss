@@ -148,6 +148,33 @@ class MLBStatsClient:
             params={"stats": stat_type, "season": season, "group": group},
         )
 
+    async def get_league_season_stats(
+        self,
+        *,
+        season: int,
+        group: str,
+        limit: int = 2000,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        """Every player's line for a season, in one response.
+
+        `playerPool=all` is the point: the default returns only qualified players, so
+        without it a backfill would miss most of the league.
+        """
+
+        return await self._get_json(
+            "/stats",
+            params={
+                "stats": "season",
+                "group": group,
+                "season": season,
+                "sportId": 1,
+                "playerPool": "all",
+                "limit": limit,
+                "offset": offset,
+            },
+        )
+
     async def get_team_roster(
         self,
         *,

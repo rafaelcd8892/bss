@@ -887,7 +887,56 @@ When adding a new decision, use this format:
 
 ---
 
+## ADR-031: Backfill a Past Season From the League Endpoint, One Season at a Time
+- Date: 2026-09-07
+- Status: Accepted
+- Context:
+  - The career backfill (ADR-030) follows the players clubs roster today, so a past
+    season it produces is missing everyone since retired. A 2019 leaderboard built from
+    it drew on 215 players rather than the 1,410 who appeared — and the names on it were
+    right, which is what made it dangerous. It looked like a leaderboard and was not one.
+  - The obvious repair, fetching each missing player, is roughly 3,500 requests a
+    season. That is precisely the "bulk use" MLBAM's terms exclude (ADR-025).
+- Decision:
+  - Use `/stats?stats=season&playerPool=all`, which returns every player who appeared in
+    a season in a single response. A whole season costs **two** requests — one per stat
+    group — rather than one per player. `playerPool=all` is load-bearing: the default
+    returns only qualified players, so without it the backfill would miss most of the
+    league.
+  - Store a multi-club season with **no team**. The payload reports a traded player once,
+    tagged with whichever club he finished at; keeping that would credit them with a
+    season he only partly spent there. A null team already means "across clubs"
+    everywhere else, so the shape needs no new convention — but it does mean a
+    backfilled season has season totals without the per-club breakdown a current-season
+    ingest provides.
+  - Write players before their stat rows. A retired player has no row from any roster
+    ingest, so the foreign key has nothing to point at otherwise.
+  - Leave handedness and biography null rather than guessing. The bulk payload carries
+    neither; a later roster ingest fills them in for anyone who returns.
+  - Keep it per-season and explicit (`run_backfill --season YYYY`), not a sweep. The cost
+    is now trivial, but ADR-025 asks that bulk ingestion be a decision rather than a
+    habit, and which seasons to hold is the operator's call.
+  - Report per season whether a league-wide backfill covered it, and say so on any board
+    reading an uncovered one. The difference between "that year" and "today's players in
+    that year" cannot be seen in the numbers, so it has to be stated.
+- Consequences:
+  - 2019 went from 215 players to 1,410 in under two seconds, and its qualified-hitter
+    count now matches what the API itself reports for `playerPool=qualified`. Nelson Cruz
+    and Anthony Rendon are on the board again.
+  - The current season is marked incomplete too, and correctly: a player released in July
+    is as absent from it as a retired one is from 2019. Backfilling it would also change
+    which players feed each club's simulator profile, which is a separate decision from
+    this one and is left open rather than taken in passing.
+- Alternatives considered:
+  - Fetching each missing player's career (correct, and 3,500 requests a season).
+  - Sweeping every season automatically (cheap enough to be tempting, which is exactly
+    why ADR-025 asks for the decision to be explicit).
+
+---
+
 ## Change Log
+- 2026-09-07: Added ADR-031; a past season can be backfilled league-wide in two
+  requests, and any board reading an uncovered season says so.
 - 2026-09-07: Added the Players table — every player's season, split by batters and
   pitchers, sorted server-side on any column, filterable and paged.
 - 2026-09-07: Leaders can be narrowed to a club and to a past season, with the

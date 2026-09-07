@@ -40,7 +40,13 @@ beforeEach(() => {
   getMock.mockReset();
   getMock.mockImplementation((path: string, options?: { params?: { query?: Record<string, unknown> } }) => {
     if (path.includes("stats/seasons")) {
-      return Promise.resolve({ data: [2026, 2019], error: undefined });
+      return Promise.resolve({
+        data: [
+          { season: 2026, complete: true },
+          { season: 2019, complete: false },
+        ],
+        error: undefined,
+      });
     }
     if (path.includes("stats/players")) {
       const query = options?.params?.query ?? {};
