@@ -5,7 +5,8 @@ import { Card } from "../../components/Card";
 import { PlayerHeadshot } from "../../components/PlayerHeadshot";
 import { teamAccent, teamLabel } from "../../teams";
 import { formatMetric } from "../analyze/metrics";
-import { usePlayerSeason } from "./hooks";
+import { CareerChart } from "./CareerChart";
+import { usePlayerCareer, usePlayerSeason } from "./hooks";
 
 type Line = components["schemas"]["PlayerSeasonLine"];
 
@@ -56,6 +57,7 @@ export function PlayerPage() {
   const requested = Number(params.get("season"));
   const season = Number.isFinite(requested) && requested > 0 ? requested : null;
   const { data, loading, error } = usePlayerSeason(valid ? id : null, season);
+  const career = usePlayerCareer(valid ? id : null);
 
   if (!valid || error) {
     return (
@@ -141,6 +143,8 @@ export function PlayerPage() {
       ) : (
         data.lines.map((line) => <SeasonLine key={line.stat_group} line={line} />)
       )}
+
+      {career.data && <CareerChart seasons={career.data.seasons} accent={accent} />}
     </div>
   );
 }
@@ -166,14 +170,36 @@ function SeasonLine({ line }: { line: Line }) {
         ["HR", line.home_runs],
       ];
 
+  // The headline rates, then everything else the ingest already stores. Anything
+  // whose inputs were never ingested stays absent rather than reading as a zero.
   const rates = hitting
     ? [
         ["wOBA", line.woba, "woba"] as const,
+        ["xwOBA", line.xwoba, "xwoba"] as const,
         ["wRC+", line.wrc_plus, "wrc_plus"] as const,
+        ["OPS", line.ops, "ops"] as const,
       ]
     : [
+        ["ERA", line.era, "era"] as const,
         ["FIP", line.fip, "fip"] as const,
+        ["WHIP", line.whip, "whip"] as const,
         ["K/BB", line.k_bb_ratio, "k_bb_ratio"] as const,
+      ];
+
+  const secondary = hitting
+    ? [
+        ["AVG", line.batting_average, "woba"] as const,
+        ["OBP", line.obp, "obp"] as const,
+        ["SLG", line.slg, "slg"] as const,
+        ["ISO", line.iso, "iso"] as const,
+        ["BABIP", line.babip, "babip"] as const,
+        ["xSLG", line.x_slg, "x_slg"] as const,
+      ]
+    : [
+        ["K%", line.strikeout_rate, "strikeout_rate"] as const,
+        ["BB%", line.walk_rate, "walk_rate"] as const,
+        ["GB%", line.ground_ball_rate, "ground_ball_rate"] as const,
+        ["xwOBA against", line.xwoba, "xwoba"] as const,
       ];
 
   return (
@@ -186,6 +212,16 @@ function SeasonLine({ line }: { line: Line }) {
           <div key={label}>
             <div className="text-[11px] text-faint">{label}</div>
             <div className="font-mono text-lg text-ink">
+              {value !== null && value !== undefined ? formatMetric(metric, value) : "—"}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-x-5 gap-y-2 border-t border-line px-3.5 py-2.5">
+        {secondary.map(([label, value, metric]) => (
+          <div key={label}>
+            <div className="text-[11px] text-faint">{label}</div>
+            <div className="font-mono text-sm text-muted">
               {value !== null && value !== undefined ? formatMetric(metric, value) : "—"}
             </div>
           </div>

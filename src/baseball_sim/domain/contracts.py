@@ -121,6 +121,41 @@ class PlayerSeasonLine(BaseModel):
     wrc_plus: float | None = None
     fip: float | None = None
     k_bb_ratio: float | None = None
+    # Widened metrics. Every one is optional: a metric whose inputs were never
+    # ingested stays absent rather than being reported as a real value of nought.
+    batting_average: float | None = None
+    obp: float | None = None
+    slg: float | None = None
+    ops: float | None = None
+    iso: float | None = None
+    babip: float | None = None
+    era: float | None = None
+    whip: float | None = None
+    strikeout_rate: float | None = None
+    walk_rate: float | None = None
+    ground_ball_rate: float | None = None
+    # Statcast expected outcomes, measured rather than derived.
+    xwoba: float | None = None
+    x_batting_average: float | None = None
+    x_slg: float | None = None
+
+
+class SeasonLines(BaseModel):
+    """One season of a player's career, as stored."""
+
+    season: int
+    lines: list[PlayerSeasonLine]
+
+
+class PlayerCareerResponse(BaseModel):
+    """Every ingested season for one player, newest first.
+
+    Only as deep as the backfill has run: a database with a single season answers with
+    a single entry rather than an error.
+    """
+
+    player: PlayerSummary
+    seasons: list[SeasonLines]
 
 
 class PlayerSeasonResponse(BaseModel):
@@ -137,7 +172,22 @@ class TeamProfileListResponse(BaseModel):
     teams: list[TeamProfileResponse]
 
 
-LeaderMetric = Literal["woba", "wrc_plus", "fip", "k_bb_ratio"]
+LeaderMetric = Literal[
+    "woba",
+    "xwoba",
+    "wrc_plus",
+    "obp",
+    "slg",
+    "ops",
+    "iso",
+    "babip",
+    "fip",
+    "era",
+    "whip",
+    "k_bb_ratio",
+    "strikeout_rate",
+    "walk_rate",
+]
 
 
 class StatLeader(BaseModel):

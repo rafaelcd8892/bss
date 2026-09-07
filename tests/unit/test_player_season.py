@@ -18,6 +18,13 @@ class FakePlayerCatalog:
         self.lines = lines
         self.requested: list[tuple[int, int]] = []
         self.seasons: list[int] = [2026]
+        self.career: list[tuple[int, PlayerSeasonLine]] = []
+
+    def get_player_career(
+        self, *, player_id: int
+    ) -> list[tuple[int, PlayerSeasonLine]]:
+        del player_id
+        return self.career
 
     def get_player_seasons(self, *, player_id: int) -> list[int]:
         del player_id
@@ -129,3 +136,56 @@ def test_an_explicit_season_is_never_second_guessed() -> None:
     catalog.seasons = [2026]
     payload = _client(catalog).get("/api/v1/players/665742/season?season=1999").json()
     assert payload["season"] == 1999
+
+
+def test_a_career_is_returned_newest_season_first() -> None:
+    catalog = FakePlayerCatalog(player=SOTO, lines=[])
+    catalog.career = [
+        (2024, PlayerSeasonLine(stat_group="hitting", woba=0.401)),
+        (2026, PlayerSeasonLine(stat_group="hitting", woba=0.388)),
+        (2025, PlayerSeasonLine(stat_group="hitting", woba=0.372)),
+    ]
+    payload = _client(catalog).get("/api/v1/players/665742/career").json()
+    assert [entry["season"] for entry in payload["seasons"]] == [2026, 2025, 2024]
+
+
+def test_a_two_way_season_keeps_both_lines_together() -> None:
+    catalog = FakePlayerCatalog(player=SOTO, lines=[])
+    catalog.career = [
+        (2026, PlayerSeasonLine(stat_group="hitting", woba=0.388)),
+        (2026, PlayerSeasonLine(stat_group="pitching", fip=3.2)),
+    ]
+    [season] = _client(catalog).get("/api/v1/players/665742/career").json()["seasons"]
+    assert {line["stat_group"] for line in season["lines"]} == {"hitting", "pitching"}
+
+
+def test_a_single_season_database_returns_one_entry_not_an_error() -> None:
+    """Without --history the backfill never ran; that is a shorter answer, not a fault."""
+
+    catalog = FakePlayerCatalog(player=SOTO, lines=[])
+    catalog.career = [(2026, PlayerSeasonLine(stat_group="hitting", woba=0.388))]
+    payload = _client(catalog).get("/api/v1/players/665742/career").json()
+    assert len(payload["seasons"]) == 1
+
+
+def test_an_unknown_player_has_no_career() -> None:
+    catalog = FakePlayerCatalog(player=None, lines=[])
+    assert _client(catalog).get("/api/v1/players/665742/career").status_code == 404
+
+
+def test_the_season_line_carries_the_widened_metrics() -> None:
+    """They were ingested and stored long before anything served them."""
+
+    catalog = FakePlayerCatalog(
+        player=SOTO,
+        lines=[
+            PlayerSeasonLine(
+                stat_group="hitting", woba=0.388, obp=0.399, slg=0.526,
+                ops=0.925, iso=0.249, babip=0.266, xwoba=0.410, x_slg=0.578,
+            )
+        ],
+    )
+    [line] = _client(catalog).get("/api/v1/players/665742/season").json()["lines"]
+    assert line["ops"] == 0.925
+    assert line["xwoba"] == 0.410
+    assert line["x_slg"] == 0.578

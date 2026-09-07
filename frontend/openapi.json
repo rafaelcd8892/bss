@@ -330,6 +330,27 @@
         "title": "PlayByPlayEvent",
         "type": "object"
       },
+      "PlayerCareerResponse": {
+        "description": "Every ingested season for one player, newest first.\n\nOnly as deep as the backfill has run: a database with a single season answers with\na single entry rather than an error.",
+        "properties": {
+          "player": {
+            "$ref": "#/components/schemas/PlayerSummary"
+          },
+          "seasons": {
+            "items": {
+              "$ref": "#/components/schemas/SeasonLines"
+            },
+            "title": "Seasons",
+            "type": "array"
+          }
+        },
+        "required": [
+          "player",
+          "seasons"
+        ],
+        "title": "PlayerCareerResponse",
+        "type": "object"
+      },
       "PlayerSeasonLine": {
         "description": "One player's season line for a stat group, with the metrics computed from it.",
         "properties": {
@@ -344,6 +365,28 @@
             ],
             "title": "At Bats"
           },
+          "babip": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Babip"
+          },
+          "batting_average": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Batting Average"
+          },
           "doubles": {
             "anyOf": [
               {
@@ -355,6 +398,17 @@
             ],
             "title": "Doubles"
           },
+          "era": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Era"
+          },
           "fip": {
             "anyOf": [
               {
@@ -365,6 +419,17 @@
               }
             ],
             "title": "Fip"
+          },
+          "ground_ball_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ground Ball Rate"
           },
           "hits": {
             "anyOf": [
@@ -399,6 +464,17 @@
             ],
             "title": "Innings Pitched"
           },
+          "iso": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Iso"
+          },
           "k_bb_ratio": {
             "anyOf": [
               {
@@ -410,6 +486,28 @@
             ],
             "title": "K Bb Ratio"
           },
+          "obp": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Obp"
+          },
+          "ops": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ops"
+          },
           "plate_appearances": {
             "anyOf": [
               {
@@ -420,6 +518,17 @@
               }
             ],
             "title": "Plate Appearances"
+          },
+          "slg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slg"
           },
           "stat_group": {
             "enum": [
@@ -439,6 +548,17 @@
               }
             ],
             "title": "Stolen Bases"
+          },
+          "strikeout_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strikeout Rate"
           },
           "strikeouts": {
             "anyOf": [
@@ -473,6 +593,17 @@
             ],
             "title": "Triples"
           },
+          "walk_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Walk Rate"
+          },
           "walks": {
             "anyOf": [
               {
@@ -483,6 +614,17 @@
               }
             ],
             "title": "Walks"
+          },
+          "whip": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Whip"
           },
           "woba": {
             "anyOf": [
@@ -505,6 +647,39 @@
               }
             ],
             "title": "Wrc Plus"
+          },
+          "x_batting_average": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "X Batting Average"
+          },
+          "x_slg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "X Slg"
+          },
+          "xwoba": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Xwoba"
           }
         },
         "required": [
@@ -721,6 +896,28 @@
           "context"
         ],
         "title": "ResponseMeta",
+        "type": "object"
+      },
+      "SeasonLines": {
+        "description": "One season of a player's career, as stored.",
+        "properties": {
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/PlayerSeasonLine"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "season": {
+            "title": "Season",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "season",
+          "lines"
+        ],
+        "title": "SeasonLines",
         "type": "object"
       },
       "SimulateGamePlayByPlayResponse": {
@@ -1035,9 +1232,19 @@
           "metric": {
             "enum": [
               "woba",
+              "xwoba",
               "wrc_plus",
+              "obp",
+              "slg",
+              "ops",
+              "iso",
+              "babip",
               "fip",
-              "k_bb_ratio"
+              "era",
+              "whip",
+              "k_bb_ratio",
+              "strikeout_rate",
+              "walk_rate"
             ],
             "title": "Metric",
             "type": "string"
@@ -1529,6 +1736,46 @@
         "summary": "Get Player Endpoint"
       }
     },
+    "/api/v1/players/{player_id}/career": {
+      "get": {
+        "description": "Every ingested season for one player, newest first.\n\nOnly as deep as the backfill has run: without `--history` this is the single\nseason that was ingested, which is a shorter answer rather than a wrong one.",
+        "operationId": "get_player_career_endpoint_api_v1_players__player_id__career_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "player_id",
+            "required": true,
+            "schema": {
+              "title": "Player Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayerCareerResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Player Career Endpoint"
+      }
+    },
     "/api/v1/players/{player_id}/season": {
       "get": {
         "operationId": "get_player_season_endpoint_api_v1_players__player_id__season_get",
@@ -1710,9 +1957,19 @@
               "default": "woba",
               "enum": [
                 "woba",
+                "xwoba",
                 "wrc_plus",
+                "obp",
+                "slg",
+                "ops",
+                "iso",
+                "babip",
                 "fip",
-                "k_bb_ratio"
+                "era",
+                "whip",
+                "k_bb_ratio",
+                "strikeout_rate",
+                "walk_rate"
               ],
               "title": "Metric",
               "type": "string"

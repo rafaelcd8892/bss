@@ -888,6 +888,8 @@ When adding a new decision, use this format:
 ---
 
 ## Change Log
+- 2026-09-07: Served the widened metrics and added career trajectory charts — the
+  ingested history and the stored-but-unserved metrics both reach the UI.
 - 2026-09-07: Added ADR-030; every stat split is kept, so traded players count toward
   their clubs, and `--history` backfills whole careers.
 - 2026-09-07: Closed ADR-028's open gap — the web replay route now uses the faithful

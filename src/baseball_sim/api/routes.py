@@ -14,11 +14,14 @@ from baseball_sim.domain.contracts import (
     ComparePlayersRequest,
     ComparePlayersResponse,
     LeaderMetric,
+    PlayerCareerResponse,
+    PlayerSeasonLine,
     PlayerSeasonResponse,
     PlayerSummary,
     PredictGameRequest,
     PredictGameResponse,
     ResponseMeta,
+    SeasonLines,
     SimulateGamePlayByPlayResponse,
     SimulateGameRequest,
     SimulateGameResponse,
@@ -284,6 +287,32 @@ def get_player_season_endpoint(
         season=resolved_season,
         lines=catalog.get_player_season_lines(player_id=player_id, season=resolved_season),
         available_seasons=available,
+    )
+
+
+@router.get("/players/{player_id}/career", response_model=PlayerCareerResponse)
+def get_player_career_endpoint(
+    player_id: int, catalog: CatalogDependency
+) -> PlayerCareerResponse:
+    """Every ingested season for one player, newest first.
+
+    Only as deep as the backfill has run: without `--history` this is the single
+    season that was ingested, which is a shorter answer rather than a wrong one.
+    """
+
+    player = catalog.get_player(player_id=player_id)
+    if player is None:
+        raise HTTPException(status_code=404, detail=f"player {player_id} not found")
+
+    by_season: dict[int, list[PlayerSeasonLine]] = {}
+    for season, line in catalog.get_player_career(player_id=player_id):
+        by_season.setdefault(season, []).append(line)
+    return PlayerCareerResponse(
+        player=player,
+        seasons=[
+            SeasonLines(season=season, lines=lines)
+            for season, lines in sorted(by_season.items(), reverse=True)
+        ],
     )
 
 

@@ -83,7 +83,8 @@ were being discarded. Parsing them added these, at no extra request cost:
 | GB% | `GO / (GO + AO)` — an approximation: the API gives ground and air *outs*, not every batted ball |
 
 Every one returns `None` rather than zero when its inputs were not ingested, so a
-missing measurement never masquerades as a real value of nought.
+missing measurement never masquerades as a real value of nought. All of them are
+served: on a player's season card, as leaderboards, and across a career.
 
 ### Statcast expected stats
 

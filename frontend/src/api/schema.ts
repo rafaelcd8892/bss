@@ -96,6 +96,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/players/{player_id}/career": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Player Career Endpoint
+         * @description Every ingested season for one player, newest first.
+         *
+         *     Only as deep as the backfill has run: without `--history` this is the single
+         *     season that was ingested, which is a shorter answer rather than a wrong one.
+         */
+        get: operations["get_player_career_endpoint_api_v1_players__player_id__career_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/players/{player_id}/season": {
         parameters: {
             query?: never;
@@ -370,26 +393,54 @@ export interface components {
             runs_scored_on_play: number;
         };
         /**
+         * PlayerCareerResponse
+         * @description Every ingested season for one player, newest first.
+         *
+         *     Only as deep as the backfill has run: a database with a single season answers with
+         *     a single entry rather than an error.
+         */
+        PlayerCareerResponse: {
+            player: components["schemas"]["PlayerSummary"];
+            /** Seasons */
+            seasons: components["schemas"]["SeasonLines"][];
+        };
+        /**
          * PlayerSeasonLine
          * @description One player's season line for a stat group, with the metrics computed from it.
          */
         PlayerSeasonLine: {
             /** At Bats */
             at_bats?: number | null;
+            /** Babip */
+            babip?: number | null;
+            /** Batting Average */
+            batting_average?: number | null;
             /** Doubles */
             doubles?: number | null;
+            /** Era */
+            era?: number | null;
             /** Fip */
             fip?: number | null;
+            /** Ground Ball Rate */
+            ground_ball_rate?: number | null;
             /** Hits */
             hits?: number | null;
             /** Home Runs */
             home_runs?: number | null;
             /** Innings Pitched */
             innings_pitched?: number | null;
+            /** Iso */
+            iso?: number | null;
             /** K Bb Ratio */
             k_bb_ratio?: number | null;
+            /** Obp */
+            obp?: number | null;
+            /** Ops */
+            ops?: number | null;
             /** Plate Appearances */
             plate_appearances?: number | null;
+            /** Slg */
+            slg?: number | null;
             /**
              * Stat Group
              * @enum {string}
@@ -397,18 +448,30 @@ export interface components {
             stat_group: "hitting" | "pitching";
             /** Stolen Bases */
             stolen_bases?: number | null;
+            /** Strikeout Rate */
+            strikeout_rate?: number | null;
             /** Strikeouts */
             strikeouts?: number | null;
             /** Team Id */
             team_id?: number | null;
             /** Triples */
             triples?: number | null;
+            /** Walk Rate */
+            walk_rate?: number | null;
             /** Walks */
             walks?: number | null;
+            /** Whip */
+            whip?: number | null;
             /** Woba */
             woba?: number | null;
             /** Wrc Plus */
             wrc_plus?: number | null;
+            /** X Batting Average */
+            x_batting_average?: number | null;
+            /** X Slg */
+            x_slg?: number | null;
+            /** Xwoba */
+            xwoba?: number | null;
         };
         /** PlayerSeasonResponse */
         PlayerSeasonResponse: {
@@ -481,6 +544,16 @@ export interface components {
              * Format: date-time
              */
             generated_at_utc?: string;
+        };
+        /**
+         * SeasonLines
+         * @description One season of a player's career, as stored.
+         */
+        SeasonLines: {
+            /** Lines */
+            lines: components["schemas"]["PlayerSeasonLine"][];
+            /** Season */
+            season: number;
         };
         /** SimulateGamePlayByPlayResponse */
         SimulateGamePlayByPlayResponse: {
@@ -595,7 +668,7 @@ export interface components {
              * Metric
              * @enum {string}
              */
-            metric: "woba" | "wrc_plus" | "fip" | "k_bb_ratio";
+            metric: "woba" | "xwoba" | "wrc_plus" | "obp" | "slg" | "ops" | "iso" | "babip" | "fip" | "era" | "whip" | "k_bb_ratio" | "strikeout_rate" | "walk_rate";
             /** Qualifier */
             qualifier: string;
             /** Season */
@@ -849,6 +922,37 @@ export interface operations {
             };
         };
     };
+    get_player_career_endpoint_api_v1_players__player_id__career_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                player_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlayerCareerResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_player_season_endpoint_api_v1_players__player_id__season_get: {
         parameters: {
             query?: {
@@ -984,7 +1088,7 @@ export interface operations {
     stat_leaders_endpoint_api_v1_stats_leaders_get: {
         parameters: {
             query?: {
-                metric?: "woba" | "wrc_plus" | "fip" | "k_bb_ratio";
+                metric?: "woba" | "xwoba" | "wrc_plus" | "obp" | "slg" | "ops" | "iso" | "babip" | "fip" | "era" | "whip" | "k_bb_ratio" | "strikeout_rate" | "walk_rate";
                 season?: number | null;
                 limit?: number;
                 /** @description Playing-time qualifier (PA for hitting, IP for pitching). */

@@ -1,38 +1,43 @@
 import { describe, expect, it } from "vitest";
-import { formatMetric, goodnessRatio } from "./metrics";
+import { METRIC_HINTS, METRIC_LABELS, METRIC_ORDER, QUALIFIER_UNIT, formatMetric } from "./metrics";
 
 describe("formatMetric", () => {
-  it("writes rate stats without the leading zero, as baseball does", () => {
-    expect(formatMetric("woba", 0.4233)).toBe(".423");
-    expect(formatMetric("xwoba", 0.281)).toBe(".281");
+  it("writes rate stats the way a baseball reader does", () => {
+    expect(formatMetric("woba", 0.4231)).toBe(".423");
+    expect(formatMetric("obp", 0.3985)).toBe(".399");
   });
 
-  it("rounds wRC+ to a whole number", () => {
-    expect(formatMetric("wrc_plus", 174.6)).toBe("175");
-    expect(formatMetric("wrc_plus", 100)).toBe("100");
+  it("keeps the leading digit when a rate clears 1.000", () => {
+    // OPS regularly does; dropping the zero would print ".031" for a 1.031 season.
+    expect(formatMetric("ops", 1.031)).toBe("1.031");
   });
 
-  it("shows ERA-scale and ratio stats to two places", () => {
-    expect(formatMetric("fip", 3.291)).toBe("3.29");
-    expect(formatMetric("k_bb_ratio", 7.227)).toBe("7.23");
+  it("reads proportions stored as fractions as percentages", () => {
+    expect(formatMetric("strikeout_rate", 0.2785)).toBe("27.9%");
+    expect(formatMetric("ground_ball_rate", 0.358)).toBe("35.8%");
+  });
+
+  it("rounds wRC+ to a whole number, because it is an index", () => {
+    expect(formatMetric("wrc_plus", 149.87)).toBe("150");
+  });
+
+  it("gives ERA-scale metrics two decimals", () => {
+    expect(formatMetric("era", 3.0543)).toBe("3.05");
+    expect(formatMetric("whip", 1.2317)).toBe("1.23");
   });
 });
 
-describe("goodnessRatio", () => {
-  it("gives the full bar to the higher value when higher is better", () => {
-    expect(goodnessRatio("higher_is_better", 10, 5)).toBe(1);
-    expect(goodnessRatio("higher_is_better", 5, 10)).toBe(0.5);
+describe("metric metadata", () => {
+  it("labels and explains every metric a leaderboard offers", () => {
+    for (const metric of METRIC_ORDER) {
+      expect(METRIC_LABELS[metric]).toBeTruthy();
+      expect(METRIC_HINTS[metric]).toBeTruthy();
+      expect(QUALIFIER_UNIT[metric]).toMatch(/^(PA|IP)$/);
+    }
   });
 
-  it("gives the full bar to the LOWER value when lower is better", () => {
-    // Without this, FIP would draw the worse pitcher with the longer bar.
-    expect(goodnessRatio("lower_is_better", 2, 4)).toBe(1);
-    expect(goodnessRatio("lower_is_better", 4, 2)).toBe(0.5);
-  });
-
-  it("never returns a negative or infinite width", () => {
-    expect(goodnessRatio("higher_is_better", 0, 0)).toBe(0);
-    expect(goodnessRatio("lower_is_better", 0, 5)).toBe(0);
-    expect(goodnessRatio("lower_is_better", 5, 0)).toBe(0);
+  it("qualifies hitting metrics on plate appearances and pitching on innings", () => {
+    expect(QUALIFIER_UNIT.ops).toBe("PA");
+    expect(QUALIFIER_UNIT.whip).toBe("IP");
   });
 });

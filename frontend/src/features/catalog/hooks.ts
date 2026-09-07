@@ -3,6 +3,7 @@ import { api, type TeamProfile } from "../../api/client";
 import type { components } from "../../api/schema";
 
 export type PlayerSeason = components["schemas"]["PlayerSeasonResponse"];
+export type PlayerCareer = components["schemas"]["PlayerCareerResponse"];
 
 type Loadable<T> = { data: T | null; loading: boolean; error: string | null };
 
@@ -50,6 +51,17 @@ export function useTeamProfile(teamId: number | null): Loadable<TeamProfile> {
     if (error || !data) throw new Error("failed");
     return data;
   }, [teamId]);
+}
+
+export function usePlayerCareer(playerId: number | null): Loadable<PlayerCareer> {
+  return useResource(async () => {
+    if (playerId === null) return null;
+    const { data, error } = await api.GET("/api/v1/players/{player_id}/career", {
+      params: { path: { player_id: playerId } },
+    });
+    if (error || !data) return null;
+    return data;
+  }, [playerId]);
 }
 
 export function usePlayerSeason(

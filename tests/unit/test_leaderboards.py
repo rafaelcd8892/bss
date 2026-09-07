@@ -118,8 +118,14 @@ def test_every_metric_has_metadata_and_a_label() -> None:
         label = leader_qualifier_label(metric, meta.default_minimum)
         assert label.startswith("min ")
         assert meta.qualifier_unit in label
-    # FIP is the only ERA-scale metric where lower wins.
-    assert [m for m, meta in LEADER_METRICS.items() if not meta.descending] == ["fip"]
+    # Direction is per metric and never inferred from the name. The run-prevention
+    # metrics rank low-first, and so does a walk rate — a pitching leaderboard for
+    # walks is the pitchers who issue fewest, not most.
+    lower_is_better = {m for m, meta in LEADER_METRICS.items() if not meta.descending}
+    assert lower_is_better == {"fip", "era", "whip", "walk_rate"}
+    # A hitter's strikeout rate would rank the other way; this one is the pitcher's.
+    assert LEADER_METRICS["strikeout_rate"].stat_group == "pitching"
+    assert LEADER_METRICS["strikeout_rate"].descending
 
 
 ELITE_LINE = RawBattingLine(

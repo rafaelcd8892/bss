@@ -32,18 +32,15 @@ simulation runs and replay by `match_id`; fielding → a league-relative `range_
 Open items, recommended order:
 1. Integration test for the Postgres stats-provider path (the dedup and fielding reads
    are covered only by unit tests over hand-built rows).
-2. Serve the widened metrics already stored: OBP/SLG/OPS/ISO/BABIP/ERA/WHIP, the
-   rates, and the expected line — through the player endpoint, Explore, and as
-   leaderboard metrics.
-3. Re-fit out of sample once a second season is ingested. The event model is now
+2. Re-fit out of sample once a second season is ingested. The event model is now
    fitted (ADR-029) but in sample, on the season it is measured against — it removes a
    known bias, it does not demonstrate skill. The attack/prevention weights are still
    unfitted: they are shape rather than scale, and nothing measures them yet.
-4. Player search endpoint, to replace the club -> roster cascade in Compare.
-5. Serve the history that is now ingested beyond the player page: career trajectory
-   charts, and a season selector on Explore's club pages.
-6. Game-level history, so calibration can be a real out-of-sample backtest.
-7. Viewer polish: runner motion along the basepath, mobile layout (<720px) review.
+3. Player search endpoint, to replace the club -> roster cascade in Compare.
+4. A season selector on Explore's club pages, so a club can be read in a past year the
+   way a player already can.
+5. Game-level history, so calibration can be a real out-of-sample backtest.
+6. Viewer polish: runner motion along the basepath, mobile layout (<720px) review.
 Run locally: `uvicorn baseball_sim.main:app --port 8000` + `cd frontend && npm run dev`
 (or `preview_start` the `app` and `web` configs in `.claude/launch.json`).
 

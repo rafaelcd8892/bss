@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Any, Protocol
 
 from baseball_sim.domain.contracts import (
     LeaderMetric,
@@ -127,10 +127,21 @@ class LeaderMetricMeta:
 
 LEADER_METRICS: dict[LeaderMetric, LeaderMetricMeta] = {
     "woba": LeaderMetricMeta("woba", "hitting", "pa", "PA", True, 200),
+    "xwoba": LeaderMetricMeta("xwoba", "hitting", "pa", "PA", True, 200),
     "wrc_plus": LeaderMetricMeta("wrc_plus", "hitting", "pa", "PA", True, 200),
-    # FIP is an ERA-scale metric: lower is better.
+    "obp": LeaderMetricMeta("obp", "hitting", "pa", "PA", True, 200),
+    "slg": LeaderMetricMeta("slg", "hitting", "pa", "PA", True, 200),
+    "ops": LeaderMetricMeta("ops", "hitting", "pa", "PA", True, 200),
+    "iso": LeaderMetricMeta("iso", "hitting", "pa", "PA", True, 200),
+    "babip": LeaderMetricMeta("babip", "hitting", "pa", "PA", True, 200),
+    # ERA-scale metrics: lower is better.
     "fip": LeaderMetricMeta("fip", "pitching", "ip", "IP", False, 50),
+    "era": LeaderMetricMeta("era", "pitching", "ip", "IP", False, 50),
+    "whip": LeaderMetricMeta("whip", "pitching", "ip", "IP", False, 50),
     "k_bb_ratio": LeaderMetricMeta("k_bb_ratio", "pitching", "ip", "IP", True, 50),
+    "strikeout_rate": LeaderMetricMeta("strikeout_rate", "pitching", "ip", "IP", True, 50),
+    # A walk rate leaderboard is the pitchers who walk fewest, so lower wins.
+    "walk_rate": LeaderMetricMeta("walk_rate", "pitching", "ip", "IP", False, 50),
 }
 
 
@@ -138,6 +149,62 @@ def leader_qualifier_label(metric: LeaderMetric, minimum: float) -> str:
     meta = LEADER_METRICS[metric]
     rendered = f"{minimum:g}"
     return f"min {rendered} {meta.qualifier_unit}"
+
+
+#: Column order :func:`player_line_from_row` expects.
+PLAYER_LINE_COLUMNS = """stat_group, team_id, pa, at_bats, singles, doubles, triples,
+                   home_runs, walks, strikeouts, stolen_bases, ip,
+                   woba, wrc_plus, fip, k_bb_ratio,
+                   batting_average, obp, slg, ops, iso, babip,
+                   era, whip, strikeout_rate, walk_rate, ground_ball_rate,
+                   xwoba, x_batting_average, x_slg"""
+
+
+def player_line_from_row(row: Sequence[Any]) -> PlayerSeasonLine | None:
+    """Build a season line, or ``None`` for a stat group we do not model."""
+
+    group = str(row[0])
+    if group not in ("hitting", "pitching"):
+        return None
+    singles, doubles, triples, home_runs = row[4], row[5], row[6], row[7]
+    # Hits are not stored: they are the four hit types, and only a hitting row has them.
+    hits = (
+        sum(int(part) for part in (singles, doubles, triples, home_runs))
+        if group == "hitting" and singles is not None
+        else None
+    )
+    return PlayerSeasonLine(
+        stat_group="hitting" if group == "hitting" else "pitching",
+        team_id=_optional_int(row[1]),
+        plate_appearances=_optional_int(row[2]),
+        at_bats=_optional_int(row[3]),
+        hits=hits,
+        doubles=_optional_int(doubles),
+        triples=_optional_int(triples),
+        home_runs=_optional_int(home_runs),
+        walks=_optional_int(row[8]),
+        strikeouts=_optional_int(row[9]),
+        stolen_bases=_optional_int(row[10]),
+        innings_pitched=_optional_float(row[11]),
+        woba=_optional_float(row[12]),
+        wrc_plus=_optional_float(row[13]),
+        fip=_optional_float(row[14]),
+        k_bb_ratio=_optional_float(row[15]),
+        batting_average=_optional_float(row[16]),
+        obp=_optional_float(row[17]),
+        slg=_optional_float(row[18]),
+        ops=_optional_float(row[19]),
+        iso=_optional_float(row[20]),
+        babip=_optional_float(row[21]),
+        era=_optional_float(row[22]),
+        whip=_optional_float(row[23]),
+        strikeout_rate=_optional_float(row[24]),
+        walk_rate=_optional_float(row[25]),
+        ground_ball_rate=_optional_float(row[26]),
+        xwoba=_optional_float(row[27]),
+        x_batting_average=_optional_float(row[28]),
+        x_slg=_optional_float(row[29]),
+    )
 
 
 class CatalogRepository(Protocol):
@@ -176,6 +243,10 @@ class CatalogRepository(Protocol):
     ) -> list[PlayerSeasonLine]: ...
 
     def get_player_seasons(self, *, player_id: int) -> list[int]: ...
+
+    def get_player_career(
+        self, *, player_id: int
+    ) -> list[tuple[int, PlayerSeasonLine]]: ...
 
     def get_completed_games(self, *, season: int) -> list[CompletedGame]: ...
 
@@ -400,11 +471,9 @@ class PostgresCatalogRepository:
     ) -> list[PlayerSeasonLine]:
         """A player's season line per stat group — the whole year, not one club's half."""
 
-        query = """
+        query = f"""
             SELECT DISTINCT ON (stat_group)
-                   stat_group, team_id, pa, at_bats, singles, doubles, triples,
-                   home_runs, walks, strikeouts, stolen_bases, ip,
-                   woba, wrc_plus, fip, k_bb_ratio
+                   {PLAYER_LINE_COLUMNS}
             FROM player_season_stats
             WHERE player_id = %s AND season = %s
             ORDER BY stat_group, team_id IS NULL DESC, loaded_at_utc DESC
@@ -412,40 +481,32 @@ class PostgresCatalogRepository:
         with self._conn.cursor() as cursor:
             cursor.execute(query, (player_id, season))
             rows = cursor.fetchall()
+        return [line for line in (player_line_from_row(row) for row in rows) if line]
 
-        lines: list[PlayerSeasonLine] = []
+    def get_player_career(self, *, player_id: int) -> list[tuple[int, PlayerSeasonLine]]:
+        """Every ingested season for one player, newest first.
+
+        One row per season per stat group — the season total where the player was
+        traded, so a career reads as years rather than as stints.
+        """
+
+        query = f"""
+            SELECT DISTINCT ON (season, stat_group)
+                   season, {PLAYER_LINE_COLUMNS}
+            FROM player_season_stats
+            WHERE player_id = %s
+            ORDER BY season DESC, stat_group, team_id IS NULL DESC, loaded_at_utc DESC
+        """
+        with self._conn.cursor() as cursor:
+            cursor.execute(query, (player_id,))
+            rows = cursor.fetchall()
+
+        career: list[tuple[int, PlayerSeasonLine]] = []
         for row in rows:
-            group = str(row[0])
-            if group not in ("hitting", "pitching"):
-                continue
-            singles, doubles, triples, home_runs = row[4], row[5], row[6], row[7]
-            hits = (
-                sum(int(part) for part in (singles, doubles, triples, home_runs))
-                if group == "hitting" and singles is not None
-                else None
-            )
-            lines.append(
-                PlayerSeasonLine(
-                    stat_group="hitting" if group == "hitting" else "pitching",
-                    team_id=_optional_int(row[1]),
-                    plate_appearances=_optional_int(row[2]),
-                    at_bats=_optional_int(row[3]),
-                    hits=hits,
-                    doubles=_optional_int(doubles),
-                    triples=_optional_int(triples),
-                    home_runs=_optional_int(home_runs),
-                    walks=_optional_int(row[8]),
-                    strikeouts=_optional_int(row[9]),
-                    stolen_bases=_optional_int(row[10]),
-                    innings_pitched=_optional_float(row[11]),
-                    woba=_optional_float(row[12]),
-                    wrc_plus=_optional_float(row[13]),
-                    fip=_optional_float(row[14]),
-                    k_bb_ratio=_optional_float(row[15]),
-                )
-            )
-        return lines
-
+            line = player_line_from_row(row[1:])
+            if line is not None:
+                career.append((int(row[0]), line))
+        return career
 
     def get_season_schedule(self, *, season: int) -> list[ScheduledGame]:
         """Every scheduled matchup, played or not.
