@@ -4,6 +4,7 @@ import {
   AnalyzeCompare,
   AnalyzeLeaders,
   AnalyzePage,
+  AnalyzePlayers,
   AnalyzeTeams,
 } from "./routes/AnalyzePage";
 import { ExplorePage } from "./routes/ExplorePage";
@@ -36,6 +37,7 @@ export function App() {
             <Route index element={<Navigate to="compare" replace />} />
             <Route path="compare" element={<AnalyzeCompare />} />
             <Route path="leaders" element={<AnalyzeLeaders />} />
+            <Route path="players" element={<AnalyzePlayers />} />
             <Route path="teams" element={<AnalyzeTeams />} />
           </Route>
           <Route path="/explore" element={<ExplorePage />}>

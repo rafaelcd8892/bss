@@ -227,6 +227,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/stats/players": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Player Stats Table Endpoint
+         * @description Every player's season, sorted and paged.
+         *
+         *     Unlike `/stats/leaders` this applies no qualifier of its own: the point is to show
+         *     everyone, and a floor is something the caller asks for rather than inherits.
+         */
+        get: operations["player_stats_table_endpoint_api_v1_stats_players_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/stats/seasons": {
         parameters: {
             query?: never;
@@ -560,6 +583,47 @@ export interface components {
             player: components["schemas"]["PlayerSummary"];
             /** Season */
             season: number;
+        };
+        /**
+         * PlayerStatRow
+         * @description One player's season, with his identity attached so a table can render a row.
+         */
+        PlayerStatRow: {
+            /** Full Name */
+            full_name: string;
+            line: components["schemas"]["PlayerSeasonLine"];
+            /** Player Id */
+            player_id: number;
+            /** Primary Position */
+            primary_position?: string | null;
+            /** Team Id */
+            team_id?: number | null;
+        };
+        /** PlayerStatsTableResponse */
+        PlayerStatsTableResponse: {
+            /**
+             * Direction
+             * @enum {string}
+             */
+            direction: "asc" | "desc";
+            /** Offset */
+            offset: number;
+            /** Rows */
+            rows: components["schemas"]["PlayerStatRow"][];
+            /** Season */
+            season: number;
+            /**
+             * Sort
+             * @enum {string}
+             */
+            sort: "name" | "team" | "pa" | "ip" | "at_bats" | "hits" | "doubles" | "triples" | "home_runs" | "walks" | "strikeouts" | "stolen_bases" | "woba" | "xwoba" | "wrc_plus" | "batting_average" | "obp" | "slg" | "ops" | "iso" | "babip" | "era" | "fip" | "whip" | "k_bb_ratio" | "strikeout_rate" | "walk_rate" | "ground_ball_rate";
+            /**
+             * Stat Group
+             * @enum {string}
+             */
+            stat_group: "hitting" | "pitching";
+            /** Total */
+            total: number;
         };
         /** PlayerSummary */
         PlayerSummary: {
@@ -1217,6 +1281,45 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StatLeadersResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    player_stats_table_endpoint_api_v1_stats_players_get: {
+        parameters: {
+            query?: {
+                stat_group?: "hitting" | "pitching";
+                season?: number | null;
+                sort?: "name" | "team" | "pa" | "ip" | "at_bats" | "hits" | "doubles" | "triples" | "home_runs" | "walks" | "strikeouts" | "stolen_bases" | "woba" | "xwoba" | "wrc_plus" | "batting_average" | "obp" | "slg" | "ops" | "iso" | "babip" | "era" | "fip" | "whip" | "k_bb_ratio" | "strikeout_rate" | "walk_rate" | "ground_ball_rate";
+                direction?: "asc" | "desc";
+                team_id?: number | null;
+                q?: string | null;
+                minimum?: number | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlayerStatsTableResponse"];
                 };
             };
             /** @description Validation Error */

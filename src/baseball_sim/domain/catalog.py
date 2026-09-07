@@ -16,7 +16,9 @@ from baseball_sim.domain.contracts import (
     PitcherWorkload,
     PlayerSearchResult,
     PlayerSeasonLine,
+    PlayerStatRow,
     PlayerSummary,
+    PlayerTableSort,
     StatLeader,
     TeamSummary,
 )
@@ -208,6 +210,40 @@ def player_line_from_row(row: Sequence[Any]) -> PlayerSeasonLine | None:
     )
 
 
+#: Sort key -> the SQL it orders by. A fixed table, never request input: the key is
+#: validated against it and only then interpolated, so the query stays parameterised.
+PLAYER_TABLE_SORTS: dict[PlayerTableSort, str] = {
+    "name": "p.full_name",
+    "team": "s.team_id",
+    "pa": "s.pa",
+    "ip": "s.ip",
+    "at_bats": "s.at_bats",
+    "hits": "(s.singles + s.doubles + s.triples + s.home_runs)",
+    "doubles": "s.doubles",
+    "triples": "s.triples",
+    "home_runs": "s.home_runs",
+    "walks": "s.walks",
+    "strikeouts": "s.strikeouts",
+    "stolen_bases": "s.stolen_bases",
+    "woba": "s.woba",
+    "xwoba": "s.xwoba",
+    "wrc_plus": "s.wrc_plus",
+    "batting_average": "s.batting_average",
+    "obp": "s.obp",
+    "slg": "s.slg",
+    "ops": "s.ops",
+    "iso": "s.iso",
+    "babip": "s.babip",
+    "era": "s.era",
+    "fip": "s.fip",
+    "whip": "s.whip",
+    "k_bb_ratio": "s.k_bb_ratio",
+    "strikeout_rate": "s.strikeout_rate",
+    "walk_rate": "s.walk_rate",
+    "ground_ball_rate": "s.ground_ball_rate",
+}
+
+
 class CatalogRepository(Protocol):
     def list_teams(self) -> list[TeamSummary]: ...
 
@@ -232,6 +268,20 @@ class CatalogRepository(Protocol):
     ) -> list[StatLeader]: ...
 
     def get_ingested_seasons(self) -> list[int]: ...
+
+    def get_player_stats_table(
+        self,
+        *,
+        season: int,
+        stat_group: str,
+        sort: PlayerTableSort,
+        descending: bool,
+        limit: int,
+        offset: int,
+        team_id: int | None = None,
+        query: str | None = None,
+        minimum: float | None = None,
+    ) -> tuple[int, list[PlayerStatRow]]: ...
 
     def get_team_stat_lines(
         self, *, team_id: int, season: int
@@ -372,6 +422,90 @@ class PostgresCatalogRepository:
             cursor.execute(_GET_BATTING_WOBA, (season, list(player_ids)))
             rows = cursor.fetchall()
         return {int(row[0]): float(row[1]) for row in rows}
+
+    def get_player_stats_table(
+        self,
+        *,
+        season: int,
+        stat_group: str,
+        sort: PlayerTableSort,
+        descending: bool,
+        limit: int,
+        offset: int,
+        team_id: int | None = None,
+        query: str | None = None,
+        minimum: float | None = None,
+    ) -> tuple[int, list[PlayerStatRow]]:
+        """Every player's season line for one stat group, sorted and paged.
+
+        Sorting happens here rather than in the client because a client can only
+        reorder the page it holds — sorting eight hundred players by OPS has to touch
+        all of them, not the fifty on screen.
+
+        A missing metric sorts last in **both** directions. A player with no ingested
+        OPS is not the best or the worst at it; he is absent, and putting him at either
+        end would read as a result.
+        """
+
+        column = PLAYER_TABLE_SORTS[sort]
+        order = "DESC" if descending else "ASC"
+
+        filters = ["s.season = %s", "s.stat_group = %s"]
+        params: list[object] = [season, stat_group]
+        if team_id is not None:
+            filters.append("s.team_id = %s")
+            params.append(team_id)
+        if query:
+            filters.append("fold_name(p.full_name) LIKE fold_name(%s)")
+            params.append(f"%{query.strip()}%")
+        if minimum is not None:
+            qualifier = "s.pa" if stat_group == "hitting" else "s.ip"
+            filters.append(f"{qualifier} >= %s")
+            params.append(minimum)
+        where = " AND ".join(filters)
+
+        # One row per player: the season total where he was traded, matching what a
+        # leaderboard shows, unless the table is narrowed to a single club.
+        prefer_total = "" if team_id is not None else "s.team_id IS NULL DESC,"
+        latest = f"""
+            SELECT DISTINCT ON (s.player_id) {PLAYER_LINE_COLUMNS},
+                   s.player_id, p.full_name, p.primary_position
+            FROM player_season_stats s
+            JOIN players p ON p.player_id = s.player_id
+            WHERE {where}
+            ORDER BY s.player_id, {prefer_total} s.loaded_at_utc DESC
+        """
+
+        with self._conn.cursor() as cursor:
+            cursor.execute(f"SELECT count(*) FROM ({latest}) picked", params)
+            counted = cursor.fetchone()
+            total = int(counted[0]) if counted else 0
+            cursor.execute(
+                f"""
+                SELECT * FROM ({latest}) picked
+                ORDER BY {column.replace("s.", "picked.").replace("p.", "picked.")}
+                    {order} NULLS LAST, picked.full_name
+                LIMIT %s OFFSET %s
+                """,
+                [*params, limit, offset],
+            )
+            rows = cursor.fetchall()
+
+        table: list[PlayerStatRow] = []
+        for row in rows:
+            line = player_line_from_row(row)
+            if line is None:
+                continue
+            table.append(
+                PlayerStatRow(
+                    player_id=int(row[-3]),
+                    full_name=str(row[-2]),
+                    primary_position=row[-1],
+                    team_id=line.team_id,
+                    line=line,
+                )
+            )
+        return total, table
 
     def get_ingested_seasons(self) -> list[int]:
         """Seasons with any ingested stat line, newest first."""

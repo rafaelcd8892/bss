@@ -888,6 +888,8 @@ When adding a new decision, use this format:
 ---
 
 ## Change Log
+- 2026-09-07: Added the Players table — every player's season, split by batters and
+  pitchers, sorted server-side on any column, filterable and paged.
 - 2026-09-07: Leaders can be narrowed to a club and to a past season, with the
   backfill's coverage limit stated on the board rather than left to be inferred.
 - 2026-09-07: Player search reaches Explore, and the viewer's club pickers became

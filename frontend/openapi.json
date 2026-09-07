@@ -825,6 +825,136 @@
         "title": "PlayerSeasonResponse",
         "type": "object"
       },
+      "PlayerStatRow": {
+        "description": "One player's season, with his identity attached so a table can render a row.",
+        "properties": {
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "line": {
+            "$ref": "#/components/schemas/PlayerSeasonLine"
+          },
+          "player_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Player Id",
+            "type": "integer"
+          },
+          "primary_position": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Primary Position"
+          },
+          "team_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team Id"
+          }
+        },
+        "required": [
+          "player_id",
+          "full_name",
+          "line"
+        ],
+        "title": "PlayerStatRow",
+        "type": "object"
+      },
+      "PlayerStatsTableResponse": {
+        "properties": {
+          "direction": {
+            "enum": [
+              "asc",
+              "desc"
+            ],
+            "title": "Direction",
+            "type": "string"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/PlayerStatRow"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "season": {
+            "title": "Season",
+            "type": "integer"
+          },
+          "sort": {
+            "enum": [
+              "name",
+              "team",
+              "pa",
+              "ip",
+              "at_bats",
+              "hits",
+              "doubles",
+              "triples",
+              "home_runs",
+              "walks",
+              "strikeouts",
+              "stolen_bases",
+              "woba",
+              "xwoba",
+              "wrc_plus",
+              "batting_average",
+              "obp",
+              "slg",
+              "ops",
+              "iso",
+              "babip",
+              "era",
+              "fip",
+              "whip",
+              "k_bb_ratio",
+              "strikeout_rate",
+              "walk_rate",
+              "ground_ball_rate"
+            ],
+            "title": "Sort",
+            "type": "string"
+          },
+          "stat_group": {
+            "enum": [
+              "hitting",
+              "pitching"
+            ],
+            "title": "Stat Group",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "season",
+          "stat_group",
+          "sort",
+          "direction",
+          "total",
+          "offset",
+          "rows"
+        ],
+        "title": "PlayerStatsTableResponse",
+        "type": "object"
+      },
       "PlayerSummary": {
         "properties": {
           "bats": {
@@ -2232,6 +2362,195 @@
           }
         },
         "summary": "Stat Leaders Endpoint"
+      }
+    },
+    "/api/v1/stats/players": {
+      "get": {
+        "description": "Every player's season, sorted and paged.\n\nUnlike `/stats/leaders` this applies no qualifier of its own: the point is to show\neveryone, and a floor is something the caller asks for rather than inherits.",
+        "operationId": "player_stats_table_endpoint_api_v1_stats_players_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "stat_group",
+            "required": false,
+            "schema": {
+              "default": "hitting",
+              "enum": [
+                "hitting",
+                "pitching"
+              ],
+              "title": "Stat Group",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "season",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Season"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "default": "pa",
+              "enum": [
+                "name",
+                "team",
+                "pa",
+                "ip",
+                "at_bats",
+                "hits",
+                "doubles",
+                "triples",
+                "home_runs",
+                "walks",
+                "strikeouts",
+                "stolen_bases",
+                "woba",
+                "xwoba",
+                "wrc_plus",
+                "batting_average",
+                "obp",
+                "slg",
+                "ops",
+                "iso",
+                "babip",
+                "era",
+                "fip",
+                "whip",
+                "k_bb_ratio",
+                "strikeout_rate",
+                "walk_rate",
+                "ground_ball_rate"
+              ],
+              "title": "Sort",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "direction",
+            "required": false,
+            "schema": {
+              "default": "desc",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "title": "Direction",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "team_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Team Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 60,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "minimum",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Minimum"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayerStatsTableResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Player Stats Table Endpoint"
       }
     },
     "/api/v1/stats/seasons": {

@@ -9,7 +9,17 @@ import pytest
 
 from baseball_sim.domain.catalog import PostgresCatalogRepository
 
-from .conftest import ACE, EMPTY, HAWKS, OTTERS, SCRUB, SEASON, SLUGGER, TWO_WAY
+from .conftest import (
+    ACE,
+    EMPTY,
+    HAWKS,
+    OTTERS,
+    SCRUB,
+    SEASON,
+    SLUGGER,
+    TWO_WAY,
+    UNMEASURED,
+)
 
 
 @pytest.fixture
@@ -156,7 +166,8 @@ class TestTeamStatLines:
     ) -> None:
         batting, pitching = catalog.get_team_stat_lines(team_id=HAWKS, season=SEASON)
         # Slugger, two-way and scrub bat; only the two-way player pitches here.
-        assert len(batting) == 3
+        # Slugger, the two-way player, Scrub and the unmeasured hitter.
+        assert len(batting) == 4
         assert len(pitching) == 1
         assert pitching[0].innings_pitched == pytest.approx(90.0)
 
@@ -171,7 +182,7 @@ class TestTeamStatLines:
         by_team = catalog.get_all_team_stat_lines(season=SEASON)
         # The club with nothing ingested simply does not appear.
         assert set(by_team) == {HAWKS, OTTERS}
-        assert len(by_team[HAWKS][0]) == 3
+        assert len(by_team[HAWKS][0]) == 4
         assert len(by_team[OTTERS][1]) == 1
         assert by_team[HAWKS] == catalog.get_team_stat_lines(team_id=HAWKS, season=SEASON)
 
@@ -241,3 +252,96 @@ class TestCompletedGames:
             assert repository.get_completed_games(season=1999) == []
         finally:
             repository.close()
+
+
+class TestPlayerStatsTable:
+    """The universal table: everyone, sorted server-side, paged."""
+
+    def table(self, catalog: PostgresCatalogRepository, **overrides: object):
+        params: dict = {
+            "season": SEASON,
+            "stat_group": "hitting",
+            "sort": "pa",
+            "descending": True,
+            "limit": 50,
+            "offset": 0,
+        }
+        params.update(overrides)
+        return catalog.get_player_stats_table(**params)  # type: ignore[arg-type]
+
+    def test_it_returns_everyone_with_no_qualifier_of_its_own(
+        self, catalog: PostgresCatalogRepository
+    ) -> None:
+        """A leaderboard applies a playing-time floor; this table exists to show all."""
+
+        total, rows = self.table(catalog)
+        assert total == 4
+        assert {row.player_id for row in rows} == {SLUGGER, TWO_WAY, SCRUB, UNMEASURED}
+
+    def test_a_minimum_can_be_asked_for(self, catalog: PostgresCatalogRepository) -> None:
+        total, rows = self.table(catalog, minimum=200)
+        assert total == 3
+        assert SCRUB not in {row.player_id for row in rows}
+
+    def test_the_group_decides_which_players_appear(
+        self, catalog: PostgresCatalogRepository
+    ) -> None:
+        _, hitters = self.table(catalog)
+        _, pitchers = self.table(catalog, stat_group="pitching", sort="ip")
+        assert ACE not in {row.player_id for row in hitters}
+        assert ACE in {row.player_id for row in pitchers}
+        # The two-way player is in both, which is the point of splitting by group.
+        assert TWO_WAY in {row.player_id for row in hitters}
+        assert TWO_WAY in {row.player_id for row in pitchers}
+
+    def test_sorting_runs_over_the_whole_set_not_the_page(
+        self, catalog: PostgresCatalogRepository
+    ) -> None:
+        _, descending = self.table(catalog, sort="woba", descending=True, limit=1)
+        _, ascending = self.table(catalog, sort="woba", descending=False, limit=1)
+        # A client sorting its own page could never produce these two answers.
+        assert descending[0].player_id == SCRUB
+        assert ascending[0].player_id == TWO_WAY
+
+    def test_a_missing_metric_sorts_last_in_both_directions(
+        self, catalog: PostgresCatalogRepository
+    ) -> None:
+        """Absent is not best and not worst; either end would read as a result.
+
+        Sorted on a metric some rows have and one does not — Postgres puts NULLs first
+        on DESC by default, so without an explicit NULLS LAST the unmeasured player
+        would top a wOBA table.
+        """
+
+        for descending in (True, False):
+            _, rows = self.table(catalog, sort="woba", descending=descending)
+            assert rows[-1].player_id == UNMEASURED
+            assert rows[-1].line.woba is None
+
+    def test_paging_walks_the_ranking(self, catalog: PostgresCatalogRepository) -> None:
+        _, first = self.table(catalog, sort="woba", limit=1, offset=0)
+        _, second = self.table(catalog, sort="woba", limit=1, offset=1)
+        assert first[0].player_id != second[0].player_id
+
+    def test_the_total_counts_matches_not_the_page(
+        self, catalog: PostgresCatalogRepository
+    ) -> None:
+        total, rows = self.table(catalog, limit=1)
+        assert len(rows) == 1
+        assert total == 4
+
+    def test_a_name_search_narrows_it(self, catalog: PostgresCatalogRepository) -> None:
+        total, rows = self.table(catalog, query="slug")
+        assert total == 1 and rows[0].player_id == SLUGGER
+
+    def test_a_club_narrows_it(self, catalog: PostgresCatalogRepository) -> None:
+        total, _ = self.table(catalog, team_id=OTTERS, stat_group="pitching", sort="ip")
+        assert total == 1
+
+    def test_rows_carry_the_identity_a_table_needs(
+        self, catalog: PostgresCatalogRepository
+    ) -> None:
+        _, rows = self.table(catalog, query="slug")
+        assert rows[0].full_name
+        assert rows[0].team_id == HAWKS
+        assert rows[0].line.stat_group == "hitting"

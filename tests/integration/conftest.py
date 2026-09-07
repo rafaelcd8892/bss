@@ -124,6 +124,10 @@ SLUGGER = 1  # elite hitter, comfortably over the qualifier
 ACE = 2  # elite pitcher
 TWO_WAY = 3  # both a hitting and a pitching line
 SCRUB = 4  # a hitter below the default qualifier
+#: A hitting line whose computed metrics were never filled in. Real databases hold
+#: these — a row ingested before the parser widened, or a player with too little to
+#: compute from — and they are what a "sorts last in both directions" claim needs.
+UNMEASURED = 5
 
 
 @pytest.fixture
@@ -161,6 +165,7 @@ def seeded(db: Any) -> Any:
                 (ACE, "Ada Ace", "P", "R", "R", SNAPSHOT_ID),
                 (TWO_WAY, "Toni Twoway", "TWP", "L", "L", SNAPSHOT_ID),
                 (SCRUB, "Sid Scrub", "2B", "R", "R", SNAPSHOT_ID),
+                (UNMEASURED, "Uma Unmeasured", "1B", "R", "R", SNAPSHOT_ID),
             ],
         )
         cursor.executemany(
@@ -213,6 +218,10 @@ def seeded(db: Any) -> Any:
                 (SCRUB, SEASON, HAWKS, "hitting", 50, None,
                  0.4900, 200.0, None, None,
                  45, 12, 3, 0, 4, 4, 0, 1, 0, 10, 1, SNAPSHOT_ID),
+                # Unmeasured: counting stats but no computed metrics at all.
+                (UNMEASURED, SEASON, HAWKS, "hitting", 300, None,
+                 None, None, None, None,
+                 270, 60, 12, 1, 8, 25, 2, 3, 2, 55, 3, SNAPSHOT_ID),
             ],
         )
     return db

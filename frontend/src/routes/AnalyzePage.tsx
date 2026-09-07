@@ -2,11 +2,13 @@ import { NavLink, Outlet, useOutletContext } from "react-router-dom";
 import type { ShellContext } from "../components/AppShell";
 import { CompareView } from "../features/analyze/CompareView";
 import { LeadersView } from "../features/analyze/LeadersView";
+import { PlayersView } from "../features/analyze/PlayersView";
 import { TeamsView } from "../features/analyze/TeamsView";
 
 const TABS = [
   { to: "/analyze/compare", label: "Compare" },
   { to: "/analyze/leaders", label: "Leaders" },
+  { to: "/analyze/players", label: "Players" },
   { to: "/analyze/teams", label: "Teams" },
 ];
 
@@ -47,4 +49,8 @@ export function AnalyzeLeaders() {
 
 export function AnalyzeTeams() {
   return <TeamsView />;
+}
+
+export function AnalyzePlayers() {
+  return <PlayersView />;
 }

@@ -220,6 +220,59 @@ class StatLeader(BaseModel):
     innings_pitched: float | None = None
 
 
+PlayerTableSort = Literal[
+    "name",
+    "team",
+    "pa",
+    "ip",
+    "at_bats",
+    "hits",
+    "doubles",
+    "triples",
+    "home_runs",
+    "walks",
+    "strikeouts",
+    "stolen_bases",
+    "woba",
+    "xwoba",
+    "wrc_plus",
+    "batting_average",
+    "obp",
+    "slg",
+    "ops",
+    "iso",
+    "babip",
+    "era",
+    "fip",
+    "whip",
+    "k_bb_ratio",
+    "strikeout_rate",
+    "walk_rate",
+    "ground_ball_rate",
+]
+
+
+class PlayerStatRow(BaseModel):
+    """One player's season, with his identity attached so a table can render a row."""
+
+    player_id: PositiveInt
+    full_name: str
+    primary_position: str | None = None
+    team_id: int | None = None
+    line: PlayerSeasonLine
+
+
+class PlayerStatsTableResponse(BaseModel):
+    season: int
+    stat_group: Literal["hitting", "pitching"]
+    sort: PlayerTableSort
+    direction: Literal["asc", "desc"]
+    #: Rows matching the filters, before paging — so a client can page honestly.
+    total: int
+    offset: int
+    rows: list[PlayerStatRow]
+
+
 class StatLeadersResponse(BaseModel):
     metric: LeaderMetric
     season: int

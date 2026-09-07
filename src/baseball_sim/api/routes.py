@@ -1,5 +1,5 @@
 from collections.abc import Iterator
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
@@ -19,7 +19,9 @@ from baseball_sim.domain.contracts import (
     PlayerSearchResponse,
     PlayerSeasonLine,
     PlayerSeasonResponse,
+    PlayerStatsTableResponse,
     PlayerSummary,
+    PlayerTableSort,
     PredictGameRequest,
     PredictGameResponse,
     ResponseMeta,
@@ -236,6 +238,49 @@ def ingested_seasons_endpoint(catalog: CatalogDependency) -> list[int]:
     """Seasons with ingested stats, newest first, so a client can offer them."""
 
     return catalog.get_ingested_seasons()
+
+
+@router.get("/stats/players", response_model=PlayerStatsTableResponse)
+def player_stats_table_endpoint(
+    catalog: CatalogDependency,
+    settings: SettingsDependency,
+    stat_group: Literal["hitting", "pitching"] = "hitting",
+    season: int | None = None,
+    sort: PlayerTableSort = "pa",
+    direction: Literal["asc", "desc"] = "desc",
+    team_id: int | None = Query(default=None, gt=0),
+    q: str | None = Query(default=None, max_length=60),
+    minimum: float | None = Query(default=None, ge=0),
+    limit: int = Query(default=50, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+) -> PlayerStatsTableResponse:
+    """Every player's season, sorted and paged.
+
+    Unlike `/stats/leaders` this applies no qualifier of its own: the point is to show
+    everyone, and a floor is something the caller asks for rather than inherits.
+    """
+
+    resolved_season = season if season is not None else settings.stats_season
+    total, rows = catalog.get_player_stats_table(
+        season=resolved_season,
+        stat_group=stat_group,
+        sort=sort,
+        descending=direction == "desc",
+        limit=limit,
+        offset=offset,
+        team_id=team_id,
+        query=q,
+        minimum=minimum,
+    )
+    return PlayerStatsTableResponse(
+        season=resolved_season,
+        stat_group=stat_group,
+        sort=sort,
+        direction=direction,
+        total=total,
+        offset=offset,
+        rows=rows,
+    )
 
 
 @router.get("/stats/leaders", response_model=StatLeadersResponse)
