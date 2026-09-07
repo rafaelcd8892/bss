@@ -35,9 +35,9 @@ Open items, recommended order:
 2. Serve the widened metrics already stored: OBP/SLG/OPS/ISO/BABIP/ERA/WHIP, the
    rates, and the expected line — through the player endpoint, Explore, and as
    leaderboard metrics.
-3. Cache lineups and staffs per club. The engine simulates a full season in 0.7s, but
-   the lineup provider opens a Postgres connection per game (21 ms), which is 150x the
-   engine cost and the one thing blocking mass season simulation.
+3. Mass season simulation. The data path is no longer the blocker (ADR-026): a full
+   2,430-game season with real profiles, lineups and staffs runs in 1.0 s. What is
+   missing is the script itself — a schedule, standings, and season-level aggregates.
 4. Club logos and player headshots by URL (derivable from ids we hold; see ADR-025).
 5. Player search endpoint, to replace the club -> roster cascade in Compare.
 6. Full career history via `yearByYear` — one request returns a whole career, but the

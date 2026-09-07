@@ -8,6 +8,7 @@ synthetic ones when there is not enough data — so attribution always works.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
 from baseball_sim.sim.lineups import Batter, synthetic_lineup
@@ -141,8 +142,27 @@ def _pitcher(
     )
 
 
+@dataclass(frozen=True)
+class TeamRosterData:
+    """Everything one club's attribution needs, read in a single trip."""
+
+    roster: Sequence[PlayerSummary]
+    woba: Mapping[int, float]
+    workloads: Mapping[int, PitcherWorkload]
+
+
 class CatalogLineupProvider:
-    """Real batting order from the persisted roster, ordered by season wOBA."""
+    """Real batting order and staff from the persisted roster.
+
+    Reads are cached per club for the life of the provider. Simulating a season is
+    2,430 games against thirty clubs: fetching the roster on every call meant two
+    connections per game, which cost more than a hundred times the simulation itself.
+    The read does not depend on the seed — only the synthetic fallback does — so a
+    club's data is fetched once and the orders derived from it.
+
+    The cache is therefore as old as the provider. Callers that hold one across a
+    re-ingest will serve the previous roster until they build a new one.
+    """
 
     def __init__(
         self,
@@ -158,44 +178,53 @@ class CatalogLineupProvider:
             fallback if fallback is not None else SyntheticLineupProvider()
         )
         self._size = size
+        self._teams: dict[int, TeamRosterData] = {}
 
-    def lineup(self, *, team_id: int, seed: int) -> list[Batter]:
+    def team_data(self, *, team_id: int) -> TeamRosterData:
+        cached = self._teams.get(team_id)
+        if cached is not None:
+            return cached
+
         from baseball_sim.domain.catalog import PostgresCatalogRepository
 
         repository = PostgresCatalogRepository(dsn=self._dsn)
         try:
             roster = repository.get_team_roster(team_id=team_id)
-            woba = repository.get_batting_woba(
-                player_ids=[player.player_id for player in roster], season=self._season
+            player_ids = [player.player_id for player in roster]
+            data = TeamRosterData(
+                roster=roster,
+                woba=repository.get_batting_woba(
+                    player_ids=player_ids, season=self._season
+                ),
+                workloads=repository.get_pitching_workload(
+                    player_ids=player_ids, season=self._season
+                ),
             )
         finally:
             repository.close()
 
+        # A concurrent caller may have filled this in the meantime. Both results are
+        # equal, so the last write wins harmlessly and no lock is needed.
+        self._teams[team_id] = data
+        return data
+
+    def lineup(self, *, team_id: int, seed: int) -> list[Batter]:
+        data = self.team_data(team_id=team_id)
         return lineup_from_roster(
-            roster,
+            data.roster,
             team_id=team_id,
             seed=seed,
             fallback=self._fallback,
-            woba=woba,
+            woba=data.woba,
             size=self._size,
         )
 
     def staff(self, *, team_id: int, seed: int) -> PitchingStaff:
-        from baseball_sim.domain.catalog import PostgresCatalogRepository
-
-        repository = PostgresCatalogRepository(dsn=self._dsn)
-        try:
-            roster = repository.get_team_roster(team_id=team_id)
-            workloads = repository.get_pitching_workload(
-                player_ids=[player.player_id for player in roster], season=self._season
-            )
-        finally:
-            repository.close()
-
+        data = self.team_data(team_id=team_id)
         return staff_from_roster(
-            roster,
+            data.roster,
             team_id=team_id,
             seed=seed,
             fallback=self._fallback,
-            workloads=workloads,
+            workloads=data.workloads,
         )

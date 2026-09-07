@@ -655,7 +655,52 @@ When adding a new decision, use this format:
 
 ---
 
+## ADR-026: Cache Roster Reads Per Club, Not Per Call
+- Date: 2026-09-07
+- Status: Accepted
+- Context:
+  - The simulation engine is fast: 0.31 ms a game, a 2,430-game season in 0.7 s. But
+    with real data a game cost 36 ms, because `CatalogLineupProvider` opened a
+    connection inside `lineup()` and another inside `staff()`, and the API rebuilt the
+    provider on every request. A simulated season spent 1.5 minutes on connections and
+    one second simulating.
+  - That ratio — a hundred times more time fetching than computing — is what stood
+    between this engine and mass season simulation, which is the point of a
+    deterministic simulator.
+  - The reads do not depend on the seed. Only the synthetic fallback does. So the same
+    roster was being fetched again for every game a club played.
+- Decision:
+  - Cache a club's roster, wOBA and pitcher workloads together in one `TeamRosterData`,
+    read once per club per provider, and derive both the batting order and the staff
+    from it. That also collapses the two round trips into one.
+  - Cache the provider instance per `(dsn, season)`, as the stats provider already was.
+    Without this the per-club cache would be discarded on every request.
+  - Close the connection even though the data is kept. Caching a result must not mean
+    holding a connection.
+  - No lock. A concurrent miss recomputes equal data and the last write wins; a lock
+    would cost more than the duplicated work it prevents.
+  - Add `reset_provider_caches()` for the case this creates: a process that ingests and
+    then serves within its own lifetime.
+- Consequences:
+  - 36 ms a game becomes 0.018 ms. A full season against real data — profiles,
+    lineups, staffs and all — runs in **1.0 s**, down from about 1.5 minutes.
+  - The live API benefits as much: the play-by-play endpoint went from 63 ms to 11 ms.
+  - The cost is staleness. A long-running process serves the roster it first read until
+    it is reset or restarted. That is already true of the stats provider, and for a
+    season that only changes when ingestion runs it is the right trade — but it is a
+    real behaviour change, not a free win.
+- Alternatives considered:
+  - A connection pool (helps the constant, not the fact that the same roster was being
+    fetched thousands of times).
+  - A TTL cache (adds a tuning knob to a thing that changes only when we run ingestion).
+  - Passing rosters in from the caller (pushes the problem to every call site and makes
+    the API endpoint assemble what the provider exists to assemble).
+
+---
+
 ## Change Log
+- 2026-09-07: Added ADR-026; roster reads cached per club, making a full simulated
+  season with real data run in a second instead of a minute and a half.
 - 2026-09-07: Added ADR-024 and ADR-025; Statcast expected stats come from the Stats
   API rather than Baseball Savant, and MLBAM's bulk/commercial terms are recorded.
 - 2026-09-06: Added ADR-023; every play now names the pitcher who threw it, with the
