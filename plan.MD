@@ -35,9 +35,10 @@ Open items, recommended order:
 2. Serve the widened metrics already stored: OBP/SLG/OPS/ISO/BABIP/ERA/WHIP, the
    rates, and the expected line — through the player endpoint, Explore, and as
    leaderboard metrics.
-3. Mass season simulation. The data path is no longer the blocker (ADR-026): a full
-   2,430-game season with real profiles, lineups and staffs runs in 1.0 s. What is
-   missing is the script itself — a schedule, standings, and season-level aggregates.
+3. Fit the factor-to-outcome mapping. Season simulation (ADR-027) measured it: the
+   per-club noise is exactly the binomial floor, but the systematic spread between
+   clubs is 51 wins where real baseball manages about 40 including luck. The constants
+   ADR-020 recorded as starting values now have a measurement to be fitted against.
 4. Club logos and player headshots by URL (derivable from ids we hold; see ADR-025).
 5. Player search endpoint, to replace the club -> roster cascade in Compare.
 6. Full career history via `yearByYear` — one request returns a whole career, but the

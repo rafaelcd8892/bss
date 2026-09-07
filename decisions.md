@@ -698,7 +698,49 @@ When adding a new decision, use this format:
 
 ---
 
+## ADR-027: Season Simulation Over the Real Schedule, With the Spread Reported
+- Date: 2026-09-07
+- Status: Accepted
+- Context:
+  - A deterministic engine that can only play one game at a time cannot answer the
+    questions people actually have about a season. ADR-026 removed the data-access
+    cost that made this impractical.
+  - A single simulated standings table invites over-reading. Baseball over 162 games
+    produces large gaps from luck alone, and a table with no spread attached to it
+    looks far more conclusive than it is.
+- Decision:
+  - Play the **real ingested schedule** rather than a generated round robin. It is
+    already in the database, it carries the actual matchup structure, and it keeps the
+    door open to scoring a simulated season against what really happened.
+  - Resolve each club's profile, lineup and staff **once per season**, not per game. A
+    club is the same club in April and September.
+  - Derive each game's seed from `(season_seed, game_pk)` through the shared mix.
+    Position-based seeds would make a filtered schedule replay differently, and an
+    additive seed would make separate seasons overlap — a thousand samples that are
+    really a few hundred, reporting a spread that is too narrow.
+  - Skip a club with no profile rather than falling back to a hashed one. Everywhere
+    else in this codebase a missing measurement stays visibly missing; a standings
+    table is the worst possible place to break that rule.
+  - Ship `--seasons N`, and report percentiles beside the mean. The projection is the
+    point, not a nicety.
+- Consequences:
+  - A 2,166-game season runs in 0.5 s; 200 seasons in about 100 s.
+  - The first run produced a finding (`docs/season_simulation.md`): the per-club noise
+    matches the binomial floor exactly, so the randomness is right, but the systematic
+    spread between clubs is 51 wins where real baseball manages about 40 including
+    luck. The factor-to-outcome mapping is too aggressive. That is now a measurement
+    rather than a suspicion, which is what ADR-004 asks for before tuning anything.
+- Alternatives considered:
+  - A generated balanced schedule (loses the real matchup structure and the ability to
+    compare against actual results, for no benefit while the real one is ingested).
+  - Reporting only a single season (the number people would quote is precisely the one
+    the spread shows is unquotable).
+
+---
+
 ## Change Log
+- 2026-09-07: Added ADR-027; season simulation over the real schedule with a
+  projection mode, and the first season-level measurement of the model's spread.
 - 2026-09-07: Added ADR-026; roster reads cached per club, making a full simulated
   season with real data run in a second instead of a minute and a half.
 - 2026-09-07: Added ADR-024 and ADR-025; Statcast expected stats come from the Stats

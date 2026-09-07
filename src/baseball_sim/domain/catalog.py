@@ -31,6 +31,7 @@ from baseball_sim.sim.sabermetrics import (
     RawFieldingLine,
     RawPitchingLine,
 )
+from baseball_sim.sim.season import ScheduledGame
 
 _LIST_TEAMS = """
     SELECT team_id, name, abbreviation, league_name, division_name
@@ -171,6 +172,8 @@ class CatalogRepository(Protocol):
     ) -> list[PlayerSeasonLine]: ...
 
     def get_completed_games(self, *, season: int) -> list[CompletedGame]: ...
+
+    def get_season_schedule(self, *, season: int) -> list[ScheduledGame]: ...
 
 
 class PostgresCatalogRepository:
@@ -419,6 +422,30 @@ class PostgresCatalogRepository:
             )
         return lines
 
+
+    def get_season_schedule(self, *, season: int) -> list[ScheduledGame]:
+        """Every scheduled matchup, played or not.
+
+        A projection replays the whole slate, so unlike `get_completed_games` this
+        does not filter on a result — a game yet to be played is exactly the one a
+        forecast is about.
+        """
+
+        query = """
+            SELECT game_pk, home_team_id, away_team_id
+            FROM games
+            WHERE season = %s
+            ORDER BY game_date, game_pk
+        """
+        with self._conn.cursor() as cursor:
+            cursor.execute(query, (season,))
+            rows = cursor.fetchall()
+        return [
+            ScheduledGame(
+                game_pk=int(row[0]), home_team_id=int(row[1]), away_team_id=int(row[2])
+            )
+            for row in rows
+        ]
 
     def get_completed_games(self, *, season: int) -> list[CompletedGame]:
         """Finished, decided games — the only ones a forecast can be scored against.
